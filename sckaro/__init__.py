@@ -13,6 +13,7 @@ __all__ = [
     "ScDataset",
     "EmbeddingView",
     "export_to_html",
+    "package_sidecar_viewer",
 ]
 
 
@@ -20,7 +21,7 @@ def __getattr__(name):
     if name in {"load_sc_data", "ScDataset", "EmbeddingView"}:
         module = import_module(".data_loader", __name__)
         return getattr(module, name)
-    if name == "export_to_html":
+    if name in {"export_to_html", "package_sidecar_viewer"}:
         module = import_module(".exporter", __name__)
         return getattr(module, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

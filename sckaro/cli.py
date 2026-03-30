@@ -78,6 +78,21 @@ def main(argv=None):
         help="Zero-fraction above which sparse gene encoding is used (default: 0.8)",
     )
     parser.add_argument(
+        "--gene-storage",
+        choices=["embedded", "sidecar"], default="embedded",
+        help="Store genes in the HTML (`embedded`) or in a JSON sidecar manifest plus shards (`sidecar`).",
+    )
+    parser.add_argument(
+        "--gene-aux-path",
+        type=str, default=None,
+        help="Optional output path for the gene sidecar manifest when --gene-storage sidecar.",
+    )
+    parser.add_argument(
+        "--gene-sidecar-shard-size",
+        type=int, default=256,
+        help="Number of genes per sidecar shard when --gene-storage sidecar (default: 256).",
+    )
+    parser.add_argument(
         "--marker-genes-groupby",
         type=str, nargs="+", default=None,
         metavar="COLUMN",
@@ -122,6 +137,9 @@ def main(argv=None):
         genes=args.genes,
         hvg_limit=args.hvg_limit,
         gene_sparse_threshold=args.gene_sparse_threshold,
+        gene_storage=args.gene_storage,
+        gene_aux_path=args.gene_aux_path,
+        gene_sidecar_shard_size=args.gene_sidecar_shard_size,
         marker_genes_groupby=args.marker_genes_groupby,
         cluster_de_groupby=args.cluster_de_groupby,
     )

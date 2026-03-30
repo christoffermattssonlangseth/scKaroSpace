@@ -6,6 +6,11 @@ and a vanilla-JS Canvas-based viewer — no server or Python required.
 """
 
 import json
+import os
+import re
+import tempfile
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -28,6 +33,28 @@ DEFAULT_PALETTE = [
     "#e7ba52", "#e7cb94", "#843c39", "#ad494a", "#d6616b",
     "#e7969c", "#7b4173", "#a55194", "#ce6dbd", "#de9ed6",
 ]
+
+GENE_SIDECAR_SHARD_SIZE = 256
+KAROSPACE_PACKAGE_MANIFEST = "karospace-package.json"
+
+
+def _chunked(values: List[str], size: int) -> List[List[str]]:
+    if size < 1:
+        raise ValueError("chunk size must be >= 1")
+    return [values[i:i + size] for i in range(0, len(values), size)]
+
+
+def _isoformat_utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _guess_package_media_type(path: Union[str, Path]) -> str:
+    suffix = Path(path).suffix.lower()
+    if suffix == ".html":
+        return "text/html"
+    if suffix == ".json":
+        return "application/json"
+    return "application/octet-stream"
 
 # ── Gene encoding helpers ────────────────────────────────────────────────────
 
@@ -232,6 +259,201 @@ def _collect_analytics_genes(analytics: Dict[str, Any]) -> List[str]:
             genes.extend(entry.get("gene") for entry in entries if isinstance(entry, dict))
 
     return [gene for gene in genes if gene]
+
+
+def _build_gene_sidecar_shard(
+    dataset: ScDataset,
+    genes: List[str],
+    *,
+    gene_sparse_threshold: float,
+) -> Dict[str, Any]:
+    gene_data = dataset._collect_gene_data(genes)
+    genes_payload: Dict[str, dict] = {}
+    genes_meta: Dict[str, dict] = {}
+    gene_encodings: Dict[str, str] = {}
+    for gene, gd in gene_data.items():
+        encoded = _encode_gene(gd["values"], sparse_threshold=gene_sparse_threshold)
+        genes_payload[gene] = encoded
+        genes_meta[gene] = {
+            "vmin": round(gd["vmin"], 5),
+            "vmax": round(gd["vmax"], 5),
+        }
+        gene_encodings[gene] = "sparse" if "sparse" in encoded else "dense"
+    return {
+        "format": "karospace-gene-sidecar-shard-v2",
+        "genes": genes_payload,
+        "genes_meta": genes_meta,
+        "gene_encodings": gene_encodings,
+    }
+
+
+def _build_karospace_package_manifest(
+    *,
+    source_root: Path,
+    entry_html: str,
+    gene_manifest_path: str,
+    gene_shard_dir: str,
+    title: str,
+    n_views: int,
+    total_cells: int,
+) -> dict:
+    files = {}
+    for file_path in sorted(p for p in source_root.rglob("*") if p.is_file()):
+        rel_path = file_path.relative_to(source_root).as_posix()
+        files[rel_path] = {
+            "media_type": _guess_package_media_type(rel_path),
+            "size_bytes": int(file_path.stat().st_size),
+        }
+
+    return {
+        "format": "karospace-package-v1",
+        "package_version": 1,
+        "entry_html": entry_html,
+        "created_at": _isoformat_utc_now(),
+        "producer": {
+            "name": "sckaro",
+            "version": "0.1.0",
+        },
+        "title": title,
+        "n_sections": int(n_views),
+        "total_cells": int(total_cells),
+        "viewer": {
+            "mode": "sidecar-package",
+            "gene_storage": "sidecar",
+            "gene_manifest_path": gene_manifest_path,
+            "gene_shard_dir": gene_shard_dir,
+        },
+        "files": files,
+    }
+
+
+def _write_karospace_package(
+    *,
+    package_path: Path,
+    source_root: Path,
+    entry_html: str,
+    gene_manifest_path: str,
+    gene_shard_dir: str,
+    title: str,
+    n_views: int,
+    total_cells: int,
+) -> None:
+    package_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest = _build_karospace_package_manifest(
+        source_root=source_root,
+        entry_html=entry_html,
+        gene_manifest_path=gene_manifest_path,
+        gene_shard_dir=gene_shard_dir,
+        title=title,
+        n_views=n_views,
+        total_cells=total_cells,
+    )
+    with zipfile.ZipFile(package_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            KAROSPACE_PACKAGE_MANIFEST,
+            json.dumps(manifest, separators=(",", ":")),
+            compress_type=zipfile.ZIP_DEFLATED,
+        )
+        for file_path in sorted((p for p in source_root.rglob("*") if p.is_file())):
+            rel_path = file_path.relative_to(source_root).as_posix()
+            zf.write(file_path, arcname=rel_path, compress_type=zipfile.ZIP_DEFLATED)
+
+
+def _extract_embedded_viewer_data(html_text: str) -> dict:
+    match = re.search(
+        r'<script id="sckaro-data" type="application/json">(.*?)</script>',
+        html_text,
+        re.DOTALL,
+    )
+    if not match:
+        raise ValueError("embedded sckaro-data script not found in HTML")
+    return json.loads(match.group(1).replace("<\\/", "</"))
+
+
+def _extract_html_title(html_text: str) -> str:
+    match = re.search(r"<title>(.*?)</title>", html_text, re.DOTALL | re.IGNORECASE)
+    if not match:
+        return "scKaroSpace"
+    return str(match.group(1)).strip() or "scKaroSpace"
+
+
+def package_sidecar_viewer(
+    html_path: Union[str, Path],
+    *,
+    output_path: Optional[Union[str, Path]] = None,
+    gene_manifest_path: Optional[Union[str, Path]] = None,
+    gene_shard_dir: Optional[Union[str, Path]] = None,
+) -> str:
+    """Package an existing sidecar viewer bundle into a `.karospace` archive."""
+    source_html_path = Path(html_path).expanduser().resolve()
+    if not source_html_path.exists():
+        raise FileNotFoundError(f"sidecar HTML not found: {source_html_path}")
+
+    html_text = source_html_path.read_text(encoding="utf-8")
+    data = _extract_embedded_viewer_data(html_text)
+    package_title = _extract_html_title(html_text)
+
+    gene_aux_url = str(data.get("gene_aux_url") or "").strip()
+    if not gene_aux_url:
+        raise ValueError("HTML viewer does not reference a sidecar gene manifest")
+
+    html_parent = source_html_path.parent
+    package_gene_manifest_rel = Path(gene_aux_url).as_posix()
+    actual_gene_manifest_path = (
+        Path(gene_manifest_path).expanduser().resolve()
+        if gene_manifest_path is not None
+        else (html_parent / package_gene_manifest_rel).resolve()
+    )
+    if not actual_gene_manifest_path.exists():
+        raise FileNotFoundError(f"sidecar gene manifest not found: {actual_gene_manifest_path}")
+
+    package_gene_shard_rel = Path(package_gene_manifest_rel).with_suffix("").as_posix()
+    actual_gene_shard_dir = (
+        Path(gene_shard_dir).expanduser().resolve()
+        if gene_shard_dir is not None
+        else (html_parent / package_gene_shard_rel).resolve()
+    )
+    if not actual_gene_shard_dir.exists():
+        raise FileNotFoundError(f"sidecar shard directory not found: {actual_gene_shard_dir}")
+
+    resolved_output_path = (
+        Path(output_path).expanduser().resolve()
+        if output_path is not None
+        else source_html_path.with_suffix(".karospace")
+    )
+    if resolved_output_path.suffix.lower() != ".karospace":
+        raise ValueError("output_path must end with .karospace")
+
+    with tempfile.TemporaryDirectory(prefix="sckaro-package-") as tmpdir:
+        source_root = Path(tmpdir)
+        entry_html = "index.html"
+        (source_root / entry_html).write_text(html_text, encoding="utf-8")
+        staged_manifest = source_root / package_gene_manifest_rel
+        staged_manifest.parent.mkdir(parents=True, exist_ok=True)
+        staged_manifest.write_text(actual_gene_manifest_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+        staged_shard_dir = source_root / package_gene_shard_rel
+        staged_shard_dir.mkdir(parents=True, exist_ok=True)
+        for file_path in actual_gene_shard_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+            rel = file_path.relative_to(actual_gene_shard_dir)
+            target = staged_shard_dir / rel
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(file_path.read_bytes())
+
+        _write_karospace_package(
+            package_path=resolved_output_path,
+            source_root=source_root,
+            entry_html=entry_html,
+            gene_manifest_path=package_gene_manifest_rel,
+            gene_shard_dir=package_gene_shard_rel,
+            title=package_title,
+            n_views=int(data.get("n_views") or 0),
+            total_cells=int(data.get("n_cells") or 0),
+        )
+
+    return str(resolved_output_path)
 
 
 def _extract_paga(adata, groupby: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -739,6 +961,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             width: 100%;
             min-width: 0;
         }}
+        .insights-search {{
+            width: 100%;
+        }}
         .marker-list {{
             display: flex;
             flex-direction: column;
@@ -797,6 +1022,26 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             height: 100%;
             border-radius: 999px;
             background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+        }}
+        .insights-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }}
+        .insights-table th,
+        .insights-table td {{
+            padding: 6px 0;
+            text-align: left;
+            border-bottom: 1px solid rgba(127,127,127,0.12);
+            vertical-align: top;
+        }}
+        .insights-table td:last-child,
+        .insights-table th:last-child {{
+            text-align: right;
+        }}
+        .table-subtle {{
+            color: var(--muted);
+            font-size: 10px;
         }}
         .dotplot-shell {{
             display: flex;
@@ -876,6 +1121,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     <div class="gene-discovery-panel" id="gene-discovery-panel"></div>
                 </div>
             </div>
+            <div class="control-group" style="position:relative;">
+                <label for="gene2-input">Gene B</label>
+                <div class="gene-input-shell">
+                    <input type="text" id="gene2-input" placeholder="compare gene…"
+                           autocomplete="off" spellcheck="false" list="gene-datalist" />
+                    <button class="gene-clear-btn" id="gene2-clear-btn" title="Clear compare gene">✕</button>
+                </div>
+            </div>
             <div class="control-group">
                 <label>Size</label>
                 <div class="size-control">
@@ -923,6 +1176,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     <div class="insights-tabs">
                         <button class="insights-tab active" data-tab="stats">Stats</button>
                         <button class="insights-tab" data-tab="markers">Markers</button>
+                        <button class="insights-tab" data-tab="table">Table</button>
                         <button class="insights-tab" data-tab="compare">Compare</button>
                         <button class="insights-tab" data-tab="dotplot">Dotplot</button>
                     </div>
@@ -934,6 +1188,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                             </div>
                         </div>
                         <div class="insights-pane hidden" id="insights-markers"></div>
+                        <div class="insights-pane hidden" id="insights-table"></div>
                         <div class="insights-pane hidden" id="insights-compare"></div>
                         <div class="insights-pane hidden" id="insights-dotplot"></div>
                     </div>
@@ -952,7 +1207,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 
     // ── State ──────────────────────────────────────────────────────────────
     let currentColor = DATA.color;
-    let currentGene  = null;   // set when coloring by gene expression
+    let currentGene  = null;   // primary gene when coloring by gene expression
+    let compareGene  = null;   // optional second gene for side-by-side compare mode
     let spotSize     = DATA.spot_size || 3.0;
     const SPOT_STEPS = [0.5, 0.8, 1.2, 1.6, 2.0, 2.8, 3.5, 4.5, 6.0, 8.0];
     let spotStepIdx  = SPOT_STEPS.reduce((best, v, i) =>
@@ -964,6 +1220,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     let hoveredCell       = null;       // global cell index
     let theme             = DATA.theme || 'light';
     const geneCache       = new Map();
+    const AVAILABLE_GENE_SET = new Set(DATA.available_genes || []);
+    let geneAuxManifest = null;
+    let geneAuxManifestPromise = null;
+    const geneAuxShardCache = new Map();
+    const geneAuxShardPromises = new Map();
 
     // Modal state
     let modalViewId  = null;
@@ -980,6 +1241,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     let compareGroupA = null;
     let compareGroupB = null;
     let dotplotGeneText = '';
+    let markerTableGroupby = null;
+    let markerTableQuery = '';
     let showHulls = false;
     let showDensityContours = false;
     let showPaga = false;
@@ -1024,12 +1287,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     // ── Data accessors ─────────────────────────────────────────────────────
     function getView(id) {{ return DATA.views.find(v => v.id === id); }}
 
-    function getColorConfig() {{
-        if (currentGene) {{
-            const m = DATA.genes_meta[currentGene] || {{}};
+    function getColorConfig(geneName=null, colorKey=null) {{
+        if (geneName) {{
+            const m = DATA.genes_meta[geneName] || {{}};
             return {{ is_continuous: true, vmin: m.vmin ?? 0, vmax: m.vmax ?? 1 }};
         }}
-        return DATA.color_configs[currentColor] || null;
+        return DATA.color_configs[colorKey || currentColor] || null;
     }}
 
     function getGeneValues(gene) {{
@@ -1050,9 +1313,106 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         return vals;
     }}
 
-    function getColorValues() {{
-        if (currentGene) return getGeneValues(currentGene);
-        const cfg = DATA.color_configs[currentColor];
+    function hydrateGeneFromAux(gene, shardData) {{
+        const geneEntry = shardData?.genes?.[gene];
+        if (!geneEntry) return false;
+        DATA.genes = DATA.genes || {{}};
+        DATA.genes_meta = DATA.genes_meta || {{}};
+        DATA.genes[gene] = geneEntry;
+        if (shardData?.genes_meta?.[gene]) {{
+            DATA.genes_meta[gene] = shardData.genes_meta[gene];
+        }}
+        geneCache.delete(gene);
+        return true;
+    }}
+
+    async function loadGeneAuxManifest() {{
+        if (geneAuxManifest) return geneAuxManifest;
+        if (geneAuxManifestPromise) return geneAuxManifestPromise;
+        if (!DATA.gene_aux_url) return null;
+        if (window.location.protocol === 'file:' && !window.__karospacePackageMode) {{
+            alert('This viewer was exported with sidecar gene loading. Open it over HTTP(S) to load additional genes.');
+            return null;
+        }}
+        geneAuxManifestPromise = fetch(DATA.gene_aux_url, {{ credentials: 'same-origin' }})
+            .then((response) => {{
+                if (!response.ok) {{
+                    throw new Error(`HTTP ${{response.status}} while loading gene sidecar manifest`);
+                }}
+                return response.json();
+            }})
+            .then((payload) => {{
+                if (!payload || payload.format !== 'karospace-gene-sidecar-manifest-v2') {{
+                    throw new Error('Unsupported gene sidecar manifest format');
+                }}
+                geneAuxManifest = payload;
+                return payload;
+            }})
+            .catch((error) => {{
+                console.error('Failed to load gene sidecar manifest:', error);
+                geneAuxManifestPromise = null;
+                alert(`Failed to load auxiliary gene manifest: ${{error?.message || 'Unknown error'}}`);
+                return null;
+            }});
+        return geneAuxManifestPromise;
+    }}
+
+    async function loadGeneAuxShard(shardUrl) {{
+        if (!shardUrl) return null;
+        if (geneAuxShardCache.has(shardUrl)) return geneAuxShardCache.get(shardUrl);
+        if (geneAuxShardPromises.has(shardUrl)) return geneAuxShardPromises.get(shardUrl);
+        const promise = fetch(shardUrl, {{ credentials: 'same-origin' }})
+            .then((response) => {{
+                if (!response.ok) {{
+                    throw new Error(`HTTP ${{response.status}} while loading gene shard`);
+                }}
+                return response.json();
+            }})
+            .then((payload) => {{
+                if (!payload || payload.format !== 'karospace-gene-sidecar-shard-v2') {{
+                    throw new Error('Unsupported gene sidecar shard format');
+                }}
+                geneAuxShardCache.set(shardUrl, payload);
+                return payload;
+            }})
+            .catch((error) => {{
+                console.error('Failed to load gene shard:', error);
+                geneAuxShardPromises.delete(shardUrl);
+                alert(`Failed to load requested gene data: ${{error?.message || 'Unknown error'}}`);
+                return null;
+            }});
+        geneAuxShardPromises.set(shardUrl, promise);
+        return promise;
+    }}
+
+    async function ensureGeneLoaded(gene, options = {{}}) {{
+        const token = String(gene || '').trim();
+        const showErrors = options.showErrors !== false;
+        if (!token) return false;
+        if (DATA.genes && DATA.genes[token]) return true;
+        if (!AVAILABLE_GENE_SET.has(token)) {{
+            if (showErrors) alert(`Gene "${{token}}" was not found in this dataset.`);
+            return false;
+        }}
+        const manifest = await loadGeneAuxManifest();
+        if (!manifest) return false;
+        const shardUrl = manifest?.gene_to_shard?.[token];
+        if (!shardUrl) {{
+            if (showErrors) alert(`Gene "${{token}}" is listed in the dataset but missing from the sidecar manifest.`);
+            return false;
+        }}
+        const shardData = await loadGeneAuxShard(shardUrl);
+        if (!shardData) return false;
+        const hydrated = hydrateGeneFromAux(token, shardData);
+        if (!hydrated && showErrors) {{
+            alert(`Gene "${{token}}" is listed in the dataset but was not found in the sidecar shard.`);
+        }}
+        return hydrated;
+    }}
+
+    function getColorValues(geneName=null, colorKey=null) {{
+        if (geneName) return getGeneValues(geneName);
+        const cfg = DATA.color_configs[colorKey || currentColor];
         if (!cfg) return null;
         return cfg.is_continuous ? cfg.values : cfg.codes;
     }}
@@ -1062,12 +1422,48 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         return view.cell_indices ? view.cell_indices[localIdx] : localIdx;
     }}
 
-    function getLocalColorValues(view) {{
-        const global = getColorValues();
+    function getLocalColorValues(view, geneName=null, colorKey=null) {{
+        const global = getColorValues(geneName, colorKey);
         if (!global) return null;
         if (!view.cell_indices) return global;
         // Return a view-local slice
         return view.cell_indices.map(gi => global[gi]);
+    }}
+
+    function getRenderedSpecs() {{
+        const compareMode = Boolean(currentGene && compareGene && compareGene !== currentGene);
+        const specs = [];
+        DATA.views.forEach(view => {{
+            if (compareMode) {{
+                specs.push({{
+                    panel_id: `${{view.id}}__geneA`,
+                    view_id: view.id,
+                    label: `${{view.name}} · ${{currentGene}}`,
+                    gene: currentGene,
+                    color: currentColor,
+                }});
+                specs.push({{
+                    panel_id: `${{view.id}}__geneB`,
+                    view_id: view.id,
+                    label: `${{view.name}} · ${{compareGene}}`,
+                    gene: compareGene,
+                    color: currentColor,
+                }});
+            }} else {{
+                specs.push({{
+                    panel_id: view.id,
+                    view_id: view.id,
+                    label: view.name,
+                    gene: currentGene,
+                    color: currentColor,
+                }});
+            }}
+        }});
+        return specs;
+    }}
+
+    function getRenderSpec(panelId) {{
+        return getRenderedSpecs().find(spec => spec.panel_id === panelId) || null;
     }}
 
     function findNearestCell(view, tf, sx, sy, maxDist=10) {{
@@ -1407,7 +1803,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     }}
 
     // ── Core renderer ──────────────────────────────────────────────────────
-    function renderView(view, canvas, isModal) {{
+    function renderView(view, canvas, isModal, spec=null) {{
         const ctx  = canvas.getContext('2d');
         const dpr  = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
@@ -1429,8 +1825,10 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             panY:  isModal ? modalPanY : 0,
         }});
 
-        const values = getLocalColorValues(view);
-        const cfg    = getColorConfig();
+        const geneName = spec?.gene ?? currentGene;
+        const colorKey = spec?.color ?? currentColor;
+        const values = getLocalColorValues(view, geneName, colorKey);
+        const cfg    = getColorConfig(geneName, colorKey);
         if (!values || !cfg) return;
 
         const r = Math.max(0.5, SPOT_STEPS[spotStepIdx]);
@@ -1530,10 +1928,13 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         const panels  = document.querySelectorAll('.view-panel');
         const grid    = document.getElementById('grid');
         const gridRect = grid?.getBoundingClientRect();
+        const specs = getRenderedSpecs();
 
         let totalCells = 0;
         const drawList = [];
-        DATA.views.forEach((view, idx) => {{
+        specs.forEach((spec, idx) => {{
+            const view = getView(spec.view_id);
+            if (!view) return;
             totalCells += view.n_cells;
             const panel  = panels[idx];
             if (!panel) return;
@@ -1543,20 +1944,22 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 const pr = panel.getBoundingClientRect();
                 if (pr.bottom < gridRect.top - 300 || pr.top > gridRect.bottom + 300) return;
             }}
-            drawList.push({{view, canvas}});
+            drawList.push({{view, canvas, spec}});
         }});
 
-        const colorLabel = currentGene || currentColor;
+        const colorLabel = currentGene
+            ? (compareGene && compareGene !== currentGene ? `${{currentGene}} vs ${{compareGene}}` : currentGene)
+            : currentColor;
         document.getElementById('stats-text').textContent =
-            `${{DATA.n_views}} view${{DATA.n_views>1?'s':''}} · ${{DATA.n_cells.toLocaleString()}} cells · ${{colorLabel}}`;
+            `${{specs.length}} view${{specs.length>1?'s':''}} · ${{DATA.n_cells.toLocaleString()}} cells · ${{colorLabel}}`;
 
         let i = 0;
         function step() {{
             if (jobId !== renderAllJobId) return;
             const t0 = performance.now();
             while (i < drawList.length && performance.now() - t0 < 12) {{
-                const {{view, canvas}} = drawList[i++];
-                try {{ renderView(view, canvas, false); }}
+                const {{view, canvas, spec}} = drawList[i++];
+                try {{ renderView(view, canvas, false, spec); }}
                 catch(e) {{ console.error('renderView failed', e); }}
             }}
             if (i < drawList.length) requestAnimationFrame(step);
@@ -1565,43 +1968,52 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     }}
 
     function renderModal() {{
-        const view = getView(modalViewId);
+        const spec = getRenderSpec(modalViewId);
+        const view = spec ? getView(spec.view_id) : null;
         if (!view) return;
         const canvas = document.getElementById('modal-canvas');
         if (!canvas) return;
-        renderView(view, canvas, true);
+        renderView(view, canvas, true, spec);
     }}
 
     // ── Grid construction ──────────────────────────────────────────────────
     function buildGrid() {{
         const grid = document.getElementById('grid');
         grid.innerHTML = '';
-        grid.classList.toggle('single-view-layout', DATA.n_views === 1);
+        const specs = getRenderedSpecs();
+        grid.classList.toggle('single-view-layout', specs.length === 1);
 
         const embeddingCounts = new Map();
-        DATA.views.forEach(view => {{
-            if (!view.embedding_key) return;
-            embeddingCounts.set(view.embedding_key, (embeddingCounts.get(view.embedding_key) || 0) + 1);
+        specs.forEach(spec => {{
+            const view = getView(spec.view_id);
+            if (!view || !view.embedding_key) return;
+            const key = `${{view.embedding_key}}__${{spec.gene || 'base'}}`;
+            embeddingCounts.set(key, (embeddingCounts.get(key) || 0) + 1);
         }});
 
-        let lastEmbeddingKey = null;
-        DATA.views.forEach(view => {{
-            if (view.embedding_key && view.embedding_key !== lastEmbeddingKey &&
-                (embeddingCounts.get(view.embedding_key) || 0) > 1) {{
+        let lastGroupKey = null;
+        specs.forEach(spec => {{
+            const view = getView(spec.view_id);
+            if (!view) return;
+            const groupKey = `${{view.embedding_key || view.id}}__${{spec.gene || 'base'}}`;
+            if (view.embedding_key && groupKey !== lastGroupKey &&
+                (embeddingCounts.get(groupKey) || 0) > 1) {{
                 const header = document.createElement('div');
                 header.className = 'grid-group-header';
-                header.textContent = view.name.includes(' — ') ? view.name.split(' — ')[0] : view.embedding_key;
+                header.textContent = spec.gene
+                    ? `${{view.name.includes(' — ') ? view.name.split(' — ')[0] : view.embedding_key}} · ${{spec.gene}}`
+                    : (view.name.includes(' — ') ? view.name.split(' — ')[0] : view.embedding_key);
                 grid.appendChild(header);
             }}
-            lastEmbeddingKey = view.embedding_key || null;
+            lastGroupKey = groupKey;
 
             const panel = document.createElement('div');
             panel.className = 'view-panel';
-            panel.dataset.viewId = view.id;
+            panel.dataset.viewId = spec.panel_id;
 
             const lbl = document.createElement('div');
             lbl.className = 'panel-label';
-            lbl.textContent = view.name;
+            lbl.textContent = spec.label;
 
             const canvas = document.createElement('canvas');
             canvas.className = 'view-canvas';
@@ -1629,7 +2041,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             panel.appendChild(lbl);
             panel.appendChild(actions);
             panel.appendChild(canvas);
-            panel.addEventListener('click', () => openModal(view.id));
+            panel.addEventListener('click', () => openModal(spec.panel_id));
             grid.appendChild(panel);
         }});
         syncOverlayButtons();
@@ -1660,10 +2072,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     function setColor(key) {{
         currentColor = key;
         currentGene  = null;
+        compareGene  = null;
         hiddenCategories.clear();
         spotlightCategory = null;
         document.getElementById('gene-input').value = '';
+        document.getElementById('gene2-input').value = '';
         document.getElementById('gene-clear-btn').classList.remove('visible');
+        document.getElementById('gene2-clear-btn').classList.remove('visible');
+        buildGrid();
         renderAllViews();
         if (modalViewId) renderModal();
         renderLegend();
@@ -1671,17 +2087,24 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         updateInsights();
     }}
 
-    function setGene(name) {{
+    async function setGene(name) {{
         if (!name) {{ clearGene(); return; }}
         // Case-insensitive lookup
         const lower = name.toLowerCase();
         const match = DATA.available_genes.find(g => g.toLowerCase() === lower);
         if (!match) return;
-        if (!DATA.genes || !DATA.genes[match]) return;
+        const ready = await ensureGeneLoaded(match);
+        if (!ready) return;
         currentGene = match;
+        if (compareGene === currentGene) {{
+            compareGene = null;
+            document.getElementById('gene2-input').value = '';
+            document.getElementById('gene2-clear-btn').classList.remove('visible');
+        }}
         document.getElementById('gene-input').value = match;
         document.getElementById('gene-clear-btn').classList.add('visible');
         addRecentGene(match);
+        buildGrid();
         renderAllViews();
         if (modalViewId) renderModal();
         renderLegend();
@@ -1691,12 +2114,48 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 
     function clearGene() {{
         currentGene = null;
+        compareGene = null;
         document.getElementById('gene-input').value = '';
+        document.getElementById('gene2-input').value = '';
         document.getElementById('gene-clear-btn').classList.remove('visible');
+        document.getElementById('gene2-clear-btn').classList.remove('visible');
+        buildGrid();
         renderAllViews();
         if (modalViewId) renderModal();
         renderLegend();
         updateGeneDiscovery();
+        updateInsights();
+    }}
+
+    async function setCompareGene(name) {{
+        const value = name.trim();
+        if (!value) {{ clearCompareGene(); return; }}
+        const lower = value.toLowerCase();
+        const match = DATA.available_genes.find(g => g.toLowerCase() === lower);
+        if (!match) return;
+        if (!currentGene) {{
+            await setGene(match);
+            return;
+        }}
+        const ready = await ensureGeneLoaded(match);
+        if (!ready) return;
+        compareGene = (match === currentGene) ? null : match;
+        document.getElementById('gene2-input').value = compareGene || '';
+        document.getElementById('gene2-clear-btn').classList.toggle('visible', Boolean(compareGene));
+        if (compareGene) addRecentGene(compareGene);
+        buildGrid();
+        renderAllViews();
+        if (modalViewId) renderModal();
+        updateInsights();
+    }}
+
+    function clearCompareGene() {{
+        compareGene = null;
+        document.getElementById('gene2-input').value = '';
+        document.getElementById('gene2-clear-btn').classList.remove('visible');
+        buildGrid();
+        renderAllViews();
+        if (modalViewId) renderModal();
         updateInsights();
     }}
 
@@ -1718,7 +2177,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         panel.innerHTML = '';
 
         // Recent genes
-        const validRecent = recentGenes.filter(g => DATA.genes && DATA.genes[g]);
+        const validRecent = recentGenes.filter(g => AVAILABLE_GENE_SET.has(g));
         if (validRecent.length) {{
             const section = makeDiscoverySection('Recent genes', validRecent);
             panel.appendChild(section);
@@ -1891,14 +2350,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     }}
 
     // ── Modal ──────────────────────────────────────────────────────────────
-    function openModal(viewId) {{
-        modalViewId = viewId;
+    function openModal(panelId) {{
+        modalViewId = panelId;
         modalZoom   = 1;
         modalPanX   = 0;
         modalPanY   = 0;
         lassoPoints = [];
-        const view  = getView(viewId);
-        document.getElementById('modal-title').textContent = view?.name || viewId;
+        const spec = getRenderSpec(panelId);
+        document.getElementById('modal-title').textContent = spec?.label || panelId;
         document.getElementById('modal-overlay').classList.remove('hidden');
         setModalMode('pan');
         requestAnimationFrame(renderModal);
@@ -1944,7 +2403,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }});
 
         canvas.addEventListener('pointermove', e => {{
-            const view = getView(modalViewId);
+            const spec = getRenderSpec(modalViewId);
+            const view = spec ? getView(spec.view_id) : null;
             const rect = canvas.getBoundingClientRect();
             if (view && rect.width && rect.height) {{
                 const tf = createViewTransform(view, {{
@@ -2011,7 +2471,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     }}
 
     function applyLasso() {{
-        const view = getView(modalViewId);
+        const spec = getRenderSpec(modalViewId);
+        const view = spec ? getView(spec.view_id) : null;
         if (!view) return;
         const canvas = document.getElementById('modal-canvas');
         const rect   = canvas.getBoundingClientRect();
@@ -2073,6 +2534,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 
     function getDefaultCompareGroupby() {{
         const keys = Object.keys(DATA.analytics?.cluster_de || {{}});
+        if (!keys.length) return null;
+        return keys.includes(currentColor) ? currentColor : keys[0];
+    }}
+
+    function getDefaultMarkerTableGroupby() {{
+        const keys = Object.keys(DATA.analytics?.marker_genes || {{}});
         if (!keys.length) return null;
         return keys.includes(currentColor) ? currentColor : keys[0];
     }}
@@ -2190,6 +2657,93 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }});
         html += `</div>`;
         panel.innerHTML = html;
+    }}
+
+    function renderTableInsights() {{
+        const panel = document.getElementById('insights-table');
+        if (!panel) return;
+
+        const markerGenes = DATA.analytics?.marker_genes || {{}};
+        const groupbyKeys = Object.keys(markerGenes);
+        if (!groupbyKeys.length) {{
+            panel.innerHTML = `<div class="insights-empty">No marker gene tables were precomputed for this export.</div>`;
+            return;
+        }}
+
+        markerTableGroupby = groupbyKeys.includes(markerTableGroupby) ? markerTableGroupby : getDefaultMarkerTableGroupby();
+        const groupMap = markerGenes[markerTableGroupby] || {{}};
+        const rows = [];
+        Object.entries(groupMap).forEach(([group, entries]) => {{
+            (entries || []).forEach((entry, rankIdx) => {{
+                rows.push({{
+                    group,
+                    gene: entry.gene,
+                    score: entry.score,
+                    pct_expr: entry.pct_expr,
+                    rank: rankIdx + 1,
+                }});
+            }});
+        }});
+
+        const q = markerTableQuery.trim().toLowerCase();
+        const filtered = q
+            ? rows.filter(row =>
+                row.gene.toLowerCase().includes(q) ||
+                row.group.toLowerCase().includes(q))
+            : rows;
+
+        panel.innerHTML = `
+            <div class="insights-controls">
+                <div class="insights-control">
+                    <label for="marker-table-groupby-select">Grouping</label>
+                    <select id="marker-table-groupby-select">
+                        ${{groupbyKeys.map(key => `<option value="${{escapeHtml(key)}}"${{key === markerTableGroupby ? ' selected' : ''}}>${{escapeHtml(key)}}</option>`).join('')}}
+                    </select>
+                </div>
+                <div class="insights-control">
+                    <label for="marker-table-search">Search</label>
+                    <input class="insights-search" id="marker-table-search" type="text" placeholder="Gene or group" value="${{escapeHtml(markerTableQuery)}}" />
+                </div>
+            </div>
+            ${{
+                filtered.length
+                    ? `<table class="insights-table">
+                        <thead>
+                            <tr>
+                                <th>Gene</th>
+                                <th>Group</th>
+                                <th>Rank</th>
+                                <th>Score</th>
+                                <th>pct</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${{filtered.slice(0, 250).map(row => `
+                                <tr>
+                                    <td>
+                                        <div>${{escapeHtml(row.gene)}}</div>
+                                        <div class="table-subtle">${{escapeHtml(markerTableGroupby)}}</div>
+                                    </td>
+                                    <td>${{escapeHtml(row.group)}}</td>
+                                    <td>${{row.rank}}</td>
+                                    <td>${{fmtNum(row.score)}}</td>
+                                    <td>${{((row.pct_expr || 0) * 100).toFixed(1)}}%</td>
+                                </tr>
+                            `).join('')}}
+                        </tbody>
+                    </table>
+                    <div class="table-subtle" style="margin-top:8px;">Showing ${{Math.min(filtered.length, 250)}} of ${{filtered.length}} rows.</div>`
+                    : `<div class="insights-empty">No marker rows match the current search.</div>`
+            }}`;
+
+        document.getElementById('marker-table-groupby-select')?.addEventListener('change', e => {{
+            markerTableGroupby = e.target.value;
+            renderTableInsights();
+        }});
+        document.getElementById('marker-table-search')?.addEventListener('input', e => {{
+            markerTableQuery = e.target.value;
+            renderTableInsights();
+        }});
     }}
 
     function renderCompareInsights() {{
@@ -2380,11 +2934,13 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         const defaultGenes = activeCategory && markerGroup?.[activeCategory]
             ? markerGroup[activeCategory].slice(0, 8).map(entry => entry.gene)
             : [];
+        if (currentGene) defaultGenes.unshift(currentGene);
+        if (compareGene) defaultGenes.unshift(compareGene);
         const requestedGenes = dotplotGeneText
             .split(',')
             .map(gene => gene.trim())
             .filter(Boolean);
-        const genes = (requestedGenes.length ? requestedGenes : defaultGenes)
+        const genes = [...new Set((requestedGenes.length ? requestedGenes : defaultGenes))]
             .filter(gene => DATA.genes_meta?.[gene]);
         const categories = (spotlightCategory ? [spotlightCategory] : cfg.categories.filter(cat => !hiddenCategories.has(cat))).slice(0, 12);
 
@@ -2427,6 +2983,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     function updateInsights() {{
         renderStatsInsights();
         renderMarkersInsights();
+        renderTableInsights();
         renderCompareInsights();
         renderDotplotInsights();
         setInsightsTab(activeInsightsTab);
@@ -2532,9 +3089,28 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }});
         document.getElementById('gene-clear-btn').addEventListener('click', clearGene);
 
+        const gene2Input = document.getElementById('gene2-input');
+        gene2Input.addEventListener('input', () => {{
+            const val = gene2Input.value.trim();
+            document.getElementById('gene2-clear-btn').classList.toggle('visible', val.length > 0);
+        }});
+        gene2Input.addEventListener('keydown', e => {{
+            if (e.key === 'Enter') {{
+                setCompareGene(gene2Input.value.trim());
+                gene2Input.blur();
+            }}
+            if (e.key === 'Escape') {{
+                clearCompareGene();
+                gene2Input.blur();
+            }}
+        }});
+        gene2Input.addEventListener('change', () => {{
+            setCompareGene(gene2Input.value.trim());
+        }});
+        document.getElementById('gene2-clear-btn').addEventListener('click', clearCompareGene);
+
         document.addEventListener('click', e => {{
-            const panel = document.getElementById('gene-discovery-panel');
-            const shell = document.querySelector('.gene-input-shell');
+            const shell = document.getElementById('gene-input')?.closest('.gene-input-shell');
             if (shell && !shell.contains(e.target)) closeGeneDiscovery();
         }});
 
@@ -2593,6 +3169,9 @@ def export_to_html(
     genes: Optional[List[str]] = None,
     hvg_limit: int = 20,
     gene_sparse_threshold: float = 0.8,
+    gene_storage: str = "embedded",
+    gene_aux_path: Optional[Union[str, Path]] = None,
+    gene_sidecar_shard_size: int = GENE_SIDECAR_SHARD_SIZE,
     marker_genes_groupby: Optional[List[str]] = None,
     cluster_de_groupby: Optional[List[str]] = None,
     vmin: Optional[float] = None,
@@ -2622,6 +3201,14 @@ def export_to_html(
         Number of highly variable genes to auto-include.
     gene_sparse_threshold
         Zero-fraction threshold above which sparse encoding is used (0–1).
+    gene_storage
+        ``'embedded'`` keeps selected genes inside the HTML. ``'sidecar'``
+        stores only selected genes in the HTML and writes the remaining genes
+        to a JSON manifest plus shard files.
+    gene_aux_path
+        Optional path for the sidecar manifest when ``gene_storage='sidecar'``.
+    gene_sidecar_shard_size
+        Number of genes per sidecar shard.
     vmin, vmax
         Optional fixed min/max for continuous colour scales.
 
@@ -2631,6 +3218,16 @@ def export_to_html(
         Path to the written HTML file.
     """
     adata = dataset.adata
+    requested_output_path = Path(output_path).expanduser().resolve()
+    package_mode = requested_output_path.suffix.lower() == ".karospace"
+    gene_storage = str(gene_storage or "embedded").strip().lower()
+    if gene_storage not in {"embedded", "sidecar"}:
+        raise ValueError("gene_storage must be one of: 'embedded', 'sidecar'")
+    gene_sidecar_shard_size = int(gene_sidecar_shard_size)
+    if gene_sidecar_shard_size < 1:
+        raise ValueError("gene_sidecar_shard_size must be >= 1")
+    if package_mode and gene_storage != "sidecar":
+        raise ValueError(".karospace export requires gene_storage='sidecar'")
 
     # ── Resolve initial color ────────────────────────────────────────────
     if color not in adata.obs.columns and color not in adata.var_names:
@@ -2705,7 +3302,13 @@ def export_to_html(
         g for g in explicit_genes + hvgs + _collect_analytics_genes(analytics)
         if g in adata.var_names
     ))
+    sidecar_genes = []
+    if gene_storage == "sidecar":
+        embedded_set = set(embed_genes)
+        sidecar_genes = [gene for gene in dataset.var_names if gene not in embedded_set]
     print(f"  Embedding {len(embed_genes)} genes…")
+    if gene_storage == "sidecar":
+        print(f"  Sidecar genes: {len(sidecar_genes)}")
 
     gene_data = dataset._collect_gene_data(embed_genes)
     genes_payload: Dict[str, dict] = {}
@@ -2747,10 +3350,37 @@ def export_to_html(
         "color_configs":  color_configs,
         "genes_meta":     genes_meta,
         "genes":          genes_payload,
+        "gene_aux_url":   None,
         "analytics":      analytics,
         "paga":           paga_payload,
         "velocity_embedding": velocity_payload,
     }
+
+    package_output_path: Optional[Path] = None
+    html_output_path: Path
+    resolved_gene_aux_path: Optional[Path] = None
+    resolved_gene_aux_dir: Optional[Path] = None
+    if package_mode:
+        package_output_path = requested_output_path
+        html_output_path = requested_output_path.with_suffix(".html")
+    else:
+        html_output_path = requested_output_path
+
+    if gene_storage == "sidecar":
+        if gene_aux_path is not None:
+            aux_candidate = Path(gene_aux_path).expanduser()
+            if not aux_candidate.is_absolute():
+                aux_candidate = (html_output_path.parent / aux_candidate).resolve()
+            resolved_gene_aux_path = aux_candidate
+        else:
+            resolved_gene_aux_path = html_output_path.with_suffix(".genes.json")
+        resolved_gene_aux_dir = resolved_gene_aux_path.with_suffix("")
+        if package_mode:
+            payload["gene_aux_url"] = resolved_gene_aux_path.name
+        else:
+            payload["gene_aux_url"] = Path(
+                os.path.relpath(resolved_gene_aux_path, start=html_output_path.parent)
+            ).as_posix()
 
     # ── Render HTML ──────────────────────────────────────────────────────
     data_json = json.dumps(payload, separators=(",", ":"))
@@ -2762,11 +3392,90 @@ def export_to_html(
         palette_json=palette_json,
     )
 
-    output_path = Path(output_path).expanduser()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as fh:
+    html_output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(html_output_path, "w", encoding="utf-8") as fh:
         fh.write(html)
 
-    size_mb = output_path.stat().st_size / 1e6
-    print(f"  Written to {output_path} ({size_mb:.1f} MB)")
-    return str(output_path)
+    if resolved_gene_aux_path is not None:
+        assert resolved_gene_aux_dir is not None
+        resolved_gene_aux_path.parent.mkdir(parents=True, exist_ok=True)
+        resolved_gene_aux_dir.mkdir(parents=True, exist_ok=True)
+        shard_groups = _chunked(sidecar_genes, gene_sidecar_shard_size)
+        manifest = {
+            "format": "karospace-gene-sidecar-manifest-v2",
+            "gene_to_shard": {},
+            "genes_meta": {},
+            "gene_encodings": {},
+            "shards": {},
+        }
+        output_parent = html_output_path.parent
+        total_sidecar_genes = len(sidecar_genes)
+        total_shards = len(shard_groups)
+        if total_sidecar_genes:
+            print(
+                f"  Building gene sidecar: {total_sidecar_genes} genes across "
+                f"{total_shards} shard{'s' if total_shards != 1 else ''}…"
+            )
+        genes_written = 0
+        for shard_idx, shard_genes in enumerate(shard_groups):
+            shard_filename = f"{shard_idx:03d}.json"
+            shard_path = resolved_gene_aux_dir / shard_filename
+            shard_rel = Path(os.path.relpath(shard_path, start=output_parent)).as_posix()
+            shard_data = _build_gene_sidecar_shard(
+                dataset,
+                shard_genes,
+                gene_sparse_threshold=gene_sparse_threshold,
+            )
+            manifest["shards"][shard_rel] = shard_genes
+            for gene in shard_genes:
+                manifest["gene_to_shard"][gene] = shard_rel
+                if gene in shard_data.get("genes_meta", {}):
+                    manifest["genes_meta"][gene] = shard_data["genes_meta"][gene]
+                if gene in shard_data.get("gene_encodings", {}):
+                    manifest["gene_encodings"][gene] = shard_data["gene_encodings"][gene]
+            with open(shard_path, "w", encoding="utf-8") as fh:
+                json.dump(shard_data, fh, separators=(",", ":"))
+            genes_written += len(shard_genes)
+            print(f"    wrote {shard_filename} ({genes_written}/{total_sidecar_genes} genes)")
+        with open(resolved_gene_aux_path, "w", encoding="utf-8") as fh:
+            json.dump(manifest, fh, separators=(",", ":"))
+
+    if package_mode:
+        assert package_output_path is not None
+        assert resolved_gene_aux_path is not None
+        assert resolved_gene_aux_dir is not None
+        with tempfile.TemporaryDirectory(prefix="sckaro-package-") as tmpdir:
+            bundle_root = Path(tmpdir)
+            entry_html = "index.html"
+            bundle_html_path = bundle_root / entry_html
+            bundle_html_path.write_text(html, encoding="utf-8")
+            package_gene_manifest_name = resolved_gene_aux_path.name
+            package_gene_manifest_path = bundle_root / package_gene_manifest_name
+            package_gene_manifest_path.write_text(
+                resolved_gene_aux_path.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            package_gene_shard_dir = bundle_root / Path(package_gene_manifest_name).with_suffix("")
+            package_gene_shard_dir.mkdir(parents=True, exist_ok=True)
+            for shard_file in sorted(resolved_gene_aux_dir.glob("*.json")):
+                (package_gene_shard_dir / shard_file.name).write_text(
+                    shard_file.read_text(encoding="utf-8"),
+                    encoding="utf-8",
+                )
+            _write_karospace_package(
+                package_path=package_output_path,
+                source_root=bundle_root,
+                entry_html=entry_html,
+                gene_manifest_path=package_gene_manifest_name,
+                gene_shard_dir=Path(package_gene_manifest_name).with_suffix("").as_posix(),
+                title=title,
+                n_views=dataset.n_views,
+                total_cells=dataset.n_cells,
+            )
+        size_mb = package_output_path.stat().st_size / 1e6
+        print(f"  Written package to {package_output_path} ({size_mb:.1f} MB)")
+        return str(package_output_path)
+
+    size_mb = html_output_path.stat().st_size / 1e6
+    print(f"  Written to {html_output_path} ({size_mb:.1f} MB)")
+    return str(html_output_path)
