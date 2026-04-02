@@ -20,7 +20,7 @@ from sckaro import export_to_html, load_sc_data
 
 DATASET_PATH = Path("/Users/chrislangseth/Astrocytes_SCT.h5ad")
 OUTPUT_PATH = ROOT / "astrocytes_sct.html"
-EMBEDDINGS = ["umap_Astrocytes", "umap.unintegrated"]
+EMBEDDINGS = ["umap_Astrocytes"]
 
 
 def main() -> None:

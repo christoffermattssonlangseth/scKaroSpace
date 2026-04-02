@@ -1,8 +1,8 @@
 """
-Package export for Astrocytes_SCT.h5ad.
+Package export for Microglia_SCT.h5ad.
 
 Run:
-    python scripts/run_astrocytes_sct_package.py
+    python scripts/run_microglia_sct_package.py
 """
 
 import os
@@ -18,9 +18,9 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
 from sckaro import export_to_html, load_sc_data
 
 
-DATASET_PATH = Path("/Users/chrislangseth/Astrocytes_SCT.h5ad")
-OUTPUT_PATH = ROOT / "astrocytes_sct.karospace"
-EMBEDDINGS = ["umap_Astrocytes"]
+DATASET_PATH = Path("/Users/chrislangseth/Microglia_SCT.h5ad")
+OUTPUT_PATH = ROOT / "microglia_sct.karospace"
+EMBEDDINGS = ["umap_Microglia", "umap.unintegrated"]
 
 
 def main() -> None:
@@ -32,15 +32,15 @@ def main() -> None:
     export_to_html(
         dataset,
         output_path=OUTPUT_PATH,
-        color="Astrocytes_clusters",
-        title="Astrocytes SCT",
+        color="Microglia_clusters",
+        title="Microglia SCT",
         theme="light",
         spot_size=3.5,
         hvg_limit=20,
         gene_storage="sidecar",
         gene_sidecar_shard_size=256,
-        marker_genes_groupby=["Astrocytes_clusters"],
-        cluster_de_groupby=["Astrocytes_clusters"],
+        marker_genes_groupby=["Microglia_clusters"],
+        cluster_de_groupby=["Microglia_clusters"],
     )
 
     print(f"Wrote {OUTPUT_PATH}")
