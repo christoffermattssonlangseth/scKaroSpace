@@ -4,6 +4,9 @@ __pycache__/
 
 *.h5ad
 *.html
+*.karospace
+*.genes.json
+*.genes/
 
 *.egg-info/
 build/
