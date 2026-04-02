@@ -599,8 +599,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         body {{
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background:
-                radial-gradient(800px 500px at 10% 0%, rgba(255,135,111,0.07), transparent),
-                radial-gradient(900px 600px at 100% 20%, rgba(135,0,82,0.07), transparent),
+                radial-gradient(800px 500px at 10% 0%, rgba(255,135,111,0.08), transparent),
+                radial-gradient(900px 600px at 100% 20%, rgba(135,0,82,0.08), transparent),
                 var(--bg);
             color: var(--text);
             min-height: 100vh;
@@ -613,7 +613,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .header {{
             padding: 8px 16px;
             background:
-                linear-gradient(90deg, rgba(255,135,111,0.10), rgba(135,0,82,0.06)),
+                linear-gradient(90deg, rgba(255,135,111,0.12), rgba(135,0,82,0.08)),
                 var(--header-bg);
             border-bottom: 1px solid var(--border);
             display: flex;
@@ -625,12 +625,12 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             position: sticky; top: 0; z-index: 10;
         }}
         .header-left {{ display: flex; align-items: center; gap: 12px; }}
-        .header h1 {{ font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }}
+        .header h1 {{ font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }}
         .header h1 span {{ color: var(--accent); }}
-        .stats {{ font-size: 11px; color: var(--muted); }}
+        .stats {{ font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }}
         .controls {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
         .control-group {{ display: flex; align-items: center; gap: 4px; }}
-        .control-group label {{ font-size: 11px; color: var(--muted); }}
+        .control-group label {{ font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }}
         select, input[type="text"] {{
             padding: 5px 8px;
             border: 1px solid var(--border);
@@ -643,7 +643,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         select {{ min-width: 110px; }}
         select:focus, input:focus {{
             outline: none;
-            border-color: var(--accent);
+            border-color: var(--accent-strong);
             box-shadow: 0 0 0 2px rgba(135,0,82,0.15);
         }}
 
@@ -745,7 +745,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             position: relative;
         }}
         .view-panel:hover {{
-            box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             transform: translateY(-2px);
             border-color: rgba(135,0,82,0.3);
         }}
@@ -760,56 +760,31 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             display: block; width: 100%;
             aspect-ratio: 1 / 1;
         }}
-        .panel-actions {{
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            display: flex;
-            gap: 4px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.15s;
+
+        /* ── Analysis sidebar ── */
+        .analysis-sidebar {{
+            width: 280px; flex-shrink: 0;
+            border-left: 1px solid var(--border);
+            background: var(--panel-bg);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            transition: border-color 0.3s, background 0.3s;
         }}
-        .view-panel:hover .panel-actions {{
-            opacity: 1;
-            pointer-events: auto;
-        }}
-        .panel-toggle {{
-            width: 24px;
-            height: 24px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: rgba(255,255,255,0.88);
-            color: var(--text);
-            cursor: pointer;
-            font-size: 11px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s, border-color 0.2s, transform 0.2s;
-        }}
-        .dark .panel-toggle {{
-            background: rgba(42,42,42,0.9);
-        }}
-        .panel-toggle:hover {{
-            background: var(--hover-bg);
-            border-color: var(--accent);
-            transform: translateY(-1px);
-        }}
-        .panel-toggle.active {{
-            border-color: var(--accent);
-            color: var(--accent);
-            background: rgba(135,0,82,0.12);
+        .sidebar-analytics {{
+            flex: 1; min-height: 0;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            border-top: 1px solid var(--border);
         }}
 
         /* ── Legend panel ── */
         .legend-panel {{
-            width: 190px; flex-shrink: 0;
-            border-left: 1px solid var(--border);
+            flex-shrink: 0;
             background: var(--panel-bg);
             overflow-y: auto;
             padding: 12px 10px;
-            transition: border-color 0.3s, background 0.3s;
+            max-height: 220px;
+            transition: background 0.3s;
         }}
         .legend-title {{
             font-size: 11px; font-weight: 600; color: var(--muted);
@@ -867,7 +842,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             border-radius: 12px;
             display: flex; flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }}
         .modal-header {{
             padding: 10px 14px;
@@ -880,20 +855,20 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .modal-title {{ font-size: 13px; font-weight: 600; }}
         .modal-toolbar {{ display: flex; align-items: center; gap: 4px; }}
         .toolbar-btn {{
-            padding: 4px 8px;
-            border: 1px solid var(--border); border-radius: 4px;
+            padding: 4px 10px;
+            border: 1px solid var(--border); border-radius: 999px;
             background: var(--input-bg); color: var(--text);
-            cursor: pointer; font-size: 13px;
-            transition: background 0.2s, border-color 0.2s;
+            cursor: pointer; font-size: 11px; font-weight: 600;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
         }}
         .toolbar-btn:hover {{ background: var(--hover-bg); }}
         .toolbar-btn.active {{
-            background: rgba(135,0,82,0.12);
-            border-color: var(--accent); color: var(--accent);
+            background: var(--accent-strong);
+            border-color: var(--accent-strong); color: #fff;
         }}
         .modal-close {{
             width: 28px; height: 28px;
-            border: 1px solid var(--border); border-radius: 4px;
+            border: 1px solid var(--border); border-radius: 999px;
             background: var(--input-bg); color: var(--text);
             cursor: pointer; font-size: 16px;
             display: flex; align-items: center; justify-content: center;
@@ -919,31 +894,38 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             pointer-events: none;
         }}
 
-        /* ── Insights sidebar ── */
-        .insights-panel {{
-            width: 260px; flex-shrink: 0;
+        /* ── Insights sidebar (shared by sidebar and modal stats) ── */
+        .insights-tabs {{
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 3px; padding: 6px;
+            flex-shrink: 0; border-bottom: 1px solid var(--border);
+        }}
+        .insights-tab {{
+            padding: 5px 4px;
+            border: 1px solid var(--border); border-radius: 999px;
+            background: var(--input-bg); color: var(--muted);
+            cursor: pointer; font-size: 9px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.03em;
+            white-space: nowrap; text-align: center;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+        }}
+        .insights-tab.active {{
+            background: var(--accent-strong);
+            border-color: var(--accent-strong); color: #fff;
+        }}
+        .insights-tab:hover:not(.active) {{ background: var(--hover-bg); color: var(--text); }}
+        .insights-content {{
+            flex: 1; overflow-y: auto; padding: 12px;
+        }}
+        /* Modal stats panel (selection info only) */
+        .modal-stats-panel {{
+            width: 190px; flex-shrink: 0;
             border-left: 1px solid var(--border);
             display: flex; flex-direction: column;
             overflow: hidden;
         }}
-        .insights-tabs {{
-            display: flex; border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
-        }}
-        .insights-tab {{
-            flex: 1; padding: 8px;
-            border: none; background: none; color: var(--muted);
-            cursor: pointer; font-size: 11px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.03em;
-            border-bottom: 2px solid transparent;
-            transition: color 0.2s, border-color 0.2s;
-        }}
-        .insights-tab.active {{
-            color: var(--accent); border-bottom-color: var(--accent);
-        }}
-        .insights-tab:hover {{ color: var(--text); }}
-        .insights-content {{
-            flex: 1; overflow-y: auto; padding: 12px;
+        .modal-stats-panel .insights-content {{
+            flex: 1; overflow-y: auto; padding: 10px;
         }}
         .no-selection-msg {{
             text-align: center; padding: 24px 12px;
@@ -1018,6 +1000,37 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             font-size: 12px;
             font-weight: 600;
         }}
+        .gene-link-btn {{
+            background: none; border: none; padding: 0;
+            color: var(--accent); font-size: 12px; font-weight: 600;
+            cursor: pointer; text-align: left;
+            transition: opacity 0.15s;
+        }}
+        .gene-link-btn:hover {{ opacity: 0.7; text-decoration: underline; }}
+        .cluster-chip-row {{
+            display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;
+        }}
+        .cluster-chip {{
+            padding: 2px 9px; border-radius: 999px; cursor: pointer;
+            font-size: 11px; font-weight: 500;
+            border: 1.5px solid var(--chip-color, var(--border));
+            background: none; color: var(--text);
+            transition: background 0.15s, color 0.15s;
+        }}
+        .cluster-chip:hover {{ opacity: 0.75; }}
+        .cluster-chip.active {{
+            background: var(--chip-color, var(--accent));
+            color: #fff;
+        }}
+        .marker-dotplot-wrap {{
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(127,127,127,0.12);
+        }}
+        .marker-dotplot-label {{
+            font-size: 10px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: .04em; color: var(--muted); margin-bottom: 6px;
+        }}
         .marker-meta {{
             font-size: 10px;
             color: var(--muted);
@@ -1084,15 +1097,48 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         .dotplot-canvas {{
             width: 100%;
-            height: 260px;
+            height: 240px;
+            display: block;
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: 6px;
             background: var(--panel-bg);
         }}
         .dotplot-note {{
             font-size: 10px;
             color: var(--muted);
             line-height: 1.4;
+        }}
+        .gene-chip-input {{
+            display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+            border: 1px solid var(--border); border-radius: 6px;
+            padding: 4px 6px; background: var(--input-bg);
+            min-height: 32px; cursor: text;
+            transition: border-color 0.2s;
+        }}
+        .gene-chip-input:focus-within {{ border-color: var(--accent-strong); }}
+        .gene-chip {{
+            display: inline-flex; align-items: center; gap: 3px;
+            background: var(--accent-strong); color: #fff;
+            border: none; border-radius: 999px;
+            padding: 2px 6px 2px 9px; font-size: 11px; font-weight: 600;
+            cursor: default; white-space: nowrap;
+        }}
+        .chip-remove {{
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%;
+            font-size: 13px; line-height: 1; opacity: 0.7;
+            cursor: pointer; background: rgba(255,255,255,0.2);
+            border: none; color: inherit; padding: 0; flex-shrink: 0;
+        }}
+        .chip-remove:hover {{ opacity: 1; background: rgba(255,255,255,0.35); }}
+        .gene-chip-input input {{
+            border: none; background: none; outline: none; box-shadow: none;
+            font-size: 12px; color: var(--text); min-width: 70px; flex: 1; padding: 0;
+        }}
+        .boxplot-canvas {{
+            width: 100%;
+            height: 220px;
+            display: block;
         }}
 
         /* ── Tooltip ── */
@@ -1124,8 +1170,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         .loading-text {{ font-size: 13px; color: var(--muted); }}
 
         @media (max-width: 640px) {{
-            .legend-panel {{ display: none; }}
-            .insights-panel {{ width: 200px; }}
+            .analysis-sidebar {{ display: none; }}
+            .modal-stats-panel {{ width: 150px; }}
         }}
     </style>
 </head>
@@ -1180,7 +1226,25 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         <div class="content-column">
             <div id="grid" class="grid-container"></div>
         </div>
-        <div id="legend" class="legend-panel"></div>
+        <div class="analysis-sidebar">
+            <div id="legend" class="legend-panel"></div>
+            <div class="sidebar-analytics">
+                <div class="insights-tabs" id="sidebar-tabs">
+                    <button class="insights-tab active" data-tab="markers">Markers</button>
+                    <button class="insights-tab" data-tab="boxplot">Boxplot</button>
+                    <button class="insights-tab" data-tab="table">Table</button>
+                    <button class="insights-tab" data-tab="compare">Compare</button>
+                    <button class="insights-tab" data-tab="dotplot">Dotplot</button>
+                </div>
+                <div class="insights-content">
+                    <div class="insights-pane" id="insights-markers"></div>
+                    <div class="insights-pane hidden" id="insights-boxplot"></div>
+                    <div class="insights-pane hidden" id="insights-table"></div>
+                    <div class="insights-pane hidden" id="insights-compare"></div>
+                    <div class="insights-pane hidden" id="insights-dotplot"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal detail view -->
@@ -1193,10 +1257,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                         <button class="toolbar-btn active" id="btn-pan" title="Pan / zoom (P)">✥</button>
                         <button class="toolbar-btn" id="btn-lasso" title="Lasso select (L)">⊙</button>
                         <button class="toolbar-btn" id="btn-clear-sel" title="Clear selection (X)">✕ sel</button>
-                        <button class="toolbar-btn" id="btn-hulls" title="Toggle convex hulls">Hulls</button>
-                        <button class="toolbar-btn" id="btn-density" title="Toggle density contours">Density</button>
-                        <button class="toolbar-btn" id="btn-paga" title="Toggle PAGA graph">PAGA</button>
-                        <button class="toolbar-btn" id="btn-velocity" title="Toggle velocity arrows">Vel</button>
                     </div>
                 </div>
                 <button class="modal-close" id="modal-close" title="Close (Esc)">✕</button>
@@ -1206,25 +1266,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     <canvas id="modal-canvas"></canvas>
                     <div class="modal-zoom-hint" id="zoom-hint">Scroll to zoom · drag to pan · P/L to switch mode</div>
                 </div>
-                <div class="insights-panel">
-                    <div class="insights-tabs">
-                        <button class="insights-tab active" data-tab="stats">Stats</button>
-                        <button class="insights-tab" data-tab="markers">Markers</button>
-                        <button class="insights-tab" data-tab="table">Table</button>
-                        <button class="insights-tab" data-tab="compare">Compare</button>
-                        <button class="insights-tab" data-tab="dotplot">Dotplot</button>
-                    </div>
+                <div class="modal-stats-panel">
                     <div class="insights-content">
-                        <div class="insights-pane" id="insights-stats">
+                        <div id="insights-stats">
                             <div class="no-selection-msg">
                                 <div>No cells selected</div>
                                 <div class="hint">Switch to <b>lasso</b> mode and draw a selection</div>
                             </div>
                         </div>
-                        <div class="insights-pane hidden" id="insights-markers"></div>
-                        <div class="insights-pane hidden" id="insights-table"></div>
-                        <div class="insights-pane hidden" id="insights-compare"></div>
-                        <div class="insights-pane hidden" id="insights-dotplot"></div>
                     </div>
                 </div>
             </div>
@@ -1270,17 +1319,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     let isPointerDown = false;
     let lastPX = 0, lastPY = 0;
     let recentGenes  = [];
-    let activeInsightsTab = 'stats';
+    let activeInsightsTab = 'markers';
     let compareGroupby = null;
     let compareGroupA = null;
     let compareGroupB = null;
     let dotplotGeneText = '';
-    let markerTableGroupby = null;
-    let markerTableQuery = '';
-    let showHulls = false;
-    let showDensityContours = false;
-    let showPaga = false;
-    let showVelocity = false;
+    let tableGeneText = '';
+    let markerInsightsGroupby = null;
+    let markerInsightsGroup = null;
 
     let renderAllJobId = 0;
 
@@ -1536,285 +1582,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         return map;
     }}
 
-    function getOverlayAlpha(base, focused) {{
-        return focused ? base : Math.max(0.02, base * 0.75);
-    }}
 
-    function convexHull(points) {{
-        if (!points || points.length < 3) return points || [];
-        const sorted = points.slice().sort((a, b) => a.x === b.x ? a.y - b.y : a.x - b.x);
-        const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-        const lower = [];
-        for (const p of sorted) {{
-            while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {{
-                lower.pop();
-            }}
-            lower.push(p);
-        }}
-        const upper = [];
-        for (let i = sorted.length - 1; i >= 0; i--) {{
-            const p = sorted[i];
-            while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {{
-                upper.pop();
-            }}
-            upper.push(p);
-        }}
-        upper.pop();
-        lower.pop();
-        return lower.concat(upper);
-    }}
-
-    function hullCentroid(points) {{
-        if (!points || !points.length) return null;
-        let x = 0, y = 0;
-        points.forEach(p => {{ x += p.x; y += p.y; }});
-        return {{x: x / points.length, y: y / points.length}};
-    }}
-
-    function drawConvexHulls(ctx, view, tf, cfg, values) {{
-        if (!showHulls || !cfg || cfg.is_continuous || !cfg.categories) return;
-        const pointsByCat = new Map();
-        for (let i = 0; i < view.n_cells; i++) {{
-            const val = values[i];
-            if (val == null || !isFinite(val)) continue;
-            const catIdx = Math.round(val);
-            const cat = cfg.categories[catIdx];
-            if (!cat || hiddenCategories.has(cat)) continue;
-            const bucket = pointsByCat.get(catIdx) || [];
-            bucket.push(tf.dataToScreen(view.x[i], view.y[i]));
-            pointsByCat.set(catIdx, bucket);
-        }}
-        const focused = spotlightCategory !== null;
-        pointsByCat.forEach((pts, catIdx) => {{
-            if (pts.length < 3) return;
-            const cat = cfg.categories[catIdx];
-            const hull = convexHull(pts);
-            if (hull.length < 3) return;
-            const color = getCategoryColor(catIdx);
-            const active = !focused || cat === spotlightCategory;
-            ctx.save();
-            ctx.globalAlpha = getOverlayAlpha(0.10, active);
-            ctx.fillStyle = color;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = active ? 1.25 : 0.9;
-            ctx.beginPath();
-            ctx.moveTo(hull[0].x, hull[0].y);
-            for (let i = 1; i < hull.length; i++) ctx.lineTo(hull[i].x, hull[i].y);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = getOverlayAlpha(0.42, active);
-            ctx.stroke();
-            const centroid = hullCentroid(hull);
-            if (centroid) {{
-                ctx.globalAlpha = 0.9;
-                ctx.fillStyle = theme === 'dark' ? '#f0f0f0' : '#222222';
-                ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(cat, centroid.x, centroid.y);
-            }}
-            ctx.restore();
-        }});
-    }}
-
-    function computeDensityGrid(view, tf, width, height, resolution=50) {{
-        const minX = 0;
-        const minY = 0;
-        const maxX = width;
-        const maxY = height;
-        const cellW = Math.max(1, (maxX - minX) / resolution);
-        const cellH = Math.max(1, (maxY - minY) / resolution);
-        const grid = Array.from({{length: resolution}}, () => new Float32Array(resolution));
-        for (let i = 0; i < view.n_cells; i++) {{
-            const p = tf.dataToScreen(view.x[i], view.y[i]);
-            const gx = Math.max(0, Math.min(resolution - 1, Math.floor((p.x - minX) / cellW)));
-            const gy = Math.max(0, Math.min(resolution - 1, Math.floor((p.y - minY) / cellH)));
-            for (let oy = -1; oy <= 1; oy++) {{
-                for (let ox = -1; ox <= 1; ox++) {{
-                    const x = gx + ox, y = gy + oy;
-                    if (x < 0 || y < 0 || x >= resolution || y >= resolution) continue;
-                    const weight = ox === 0 && oy === 0 ? 1.0 : 0.35;
-                    grid[y][x] += weight;
-                }}
-            }}
-        }}
-        return {{grid, resolution, cellW, cellH, minX, minY}};
-    }}
-
-    function traceContourCell(ctx, x, y, sizeX, sizeY, state) {{
-        const xm = x + sizeX / 2;
-        const ym = y + sizeY / 2;
-        const segments = {{
-            1: [[x, ym], [xm, y + sizeY]],
-            2: [[xm, y + sizeY], [x + sizeX, ym]],
-            3: [[x, ym], [x + sizeX, ym]],
-            4: [[xm, y], [x + sizeX, ym]],
-            5: [[x, ym], [xm, y], [xm, y + sizeY], [x + sizeX, ym]],
-            6: [[xm, y], [xm, y + sizeY]],
-            7: [[x, ym], [xm, y]],
-            8: [[x, ym], [xm, y]],
-            9: [[xm, y], [xm, y + sizeY]],
-            10:[[xm, y], [x + sizeX, ym], [x, ym], [xm, y + sizeY]],
-            11:[[xm, y], [x + sizeX, ym]],
-            12:[[x, ym], [x + sizeX, ym]],
-            13:[[xm, y + sizeY], [x + sizeX, ym]],
-            14:[[x, ym], [xm, y + sizeY]],
-        }};
-        const seg = segments[state];
-        if (!seg) return;
-        ctx.beginPath();
-        ctx.moveTo(seg[0][0], seg[0][1]);
-        for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i][0], seg[i][1]);
-        ctx.stroke();
-    }}
-
-    function drawDensityContours(ctx, view, tf, width, height) {{
-        if (!showDensityContours || view.n_cells < 10) return;
-        const density = computeDensityGrid(view, tf, width, height, 52);
-        let maxVal = 0;
-        for (const row of density.grid) {{
-            for (const val of row) maxVal = Math.max(maxVal, val);
-        }}
-        if (maxVal <= 0) return;
-        const levels = [0.18, 0.33, 0.5, 0.7].map(v => v * maxVal);
-        ctx.save();
-        ctx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.42)' : 'rgba(34,34,34,0.28)';
-        ctx.lineWidth = 1;
-        levels.forEach(level => {{
-            for (let y = 0; y < density.resolution - 1; y++) {{
-                for (let x = 0; x < density.resolution - 1; x++) {{
-                    const tl = density.grid[y][x] >= level ? 1 : 0;
-                    const tr = density.grid[y][x + 1] >= level ? 1 : 0;
-                    const br = density.grid[y + 1][x + 1] >= level ? 1 : 0;
-                    const bl = density.grid[y + 1][x] >= level ? 1 : 0;
-                    const state = tl * 8 + tr * 4 + br * 2 + bl;
-                    if (state === 0 || state === 15) continue;
-                    traceContourCell(
-                        ctx,
-                        density.minX + x * density.cellW,
-                        density.minY + y * density.cellH,
-                        density.cellW,
-                        density.cellH,
-                        state,
-                    );
-                }}
-            }}
-        }});
-        ctx.restore();
-    }}
-
-    function getVelocityVectors(view) {{
-        const velMap = DATA.velocity_embedding || {{}};
-        const entry = velMap[view.embedding_key];
-        if (!entry || !entry.dx || !entry.dy) return null;
-        if (!view.cell_indices) return entry;
-        return {{
-            dx: view.cell_indices.map(gi => entry.dx[gi]),
-            dy: view.cell_indices.map(gi => entry.dy[gi]),
-        }};
-    }}
-
-    function drawVelocity(ctx, view, tf) {{
-        if (!showVelocity) return;
-        const velocity = getVelocityVectors(view);
-        if (!velocity) return;
-        const step = Math.max(1, Math.floor(view.n_cells / 500));
-        ctx.save();
-        ctx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(20,20,20,0.4)';
-        ctx.lineWidth = 0.9;
-        for (let i = 0; i < view.n_cells; i += step) {{
-            const dx = velocity.dx[i];
-            const dy = velocity.dy[i];
-            if (!Number.isFinite(dx) || !Number.isFinite(dy)) continue;
-            const start = tf.dataToScreen(view.x[i], view.y[i]);
-            const end = tf.dataToScreen(view.x[i] + dx, view.y[i] + dy);
-            const vx = end.x - start.x;
-            const vy = end.y - start.y;
-            const len = Math.hypot(vx, vy);
-            if (len < 2) continue;
-            const scale = Math.min(10, Math.max(3, len));
-            const ux = vx / len;
-            const uy = vy / len;
-            const ex = start.x + ux * scale;
-            const ey = start.y + uy * scale;
-            ctx.beginPath();
-            ctx.moveTo(start.x, start.y);
-            ctx.lineTo(ex, ey);
-            ctx.lineTo(ex - ux * 3 - uy * 2, ey - uy * 3 + ux * 2);
-            ctx.moveTo(ex, ey);
-            ctx.lineTo(ex - ux * 3 + uy * 2, ey - uy * 3 - ux * 2);
-            ctx.stroke();
-        }}
-        ctx.restore();
-    }}
-
-    function drawPAGA(ctx, view, tf, cfg, values) {{
-        if (!showPaga || !DATA.paga || !cfg || cfg.is_continuous || !cfg.categories) return;
-        if (DATA.paga.groupby !== currentColor) return;
-        const centroids = new Map();
-        const counts = new Map();
-        for (let i = 0; i < view.n_cells; i++) {{
-            const raw = values[i];
-            if (raw == null || !Number.isFinite(raw)) continue;
-            const code = Math.round(raw);
-            const cat = cfg.categories[code];
-            if (!cat || hiddenCategories.has(cat)) continue;
-            const p = tf.dataToScreen(view.x[i], view.y[i]);
-            const prev = centroids.get(cat) || {{x: 0, y: 0}};
-            centroids.set(cat, {{x: prev.x + p.x, y: prev.y + p.y}});
-            counts.set(cat, (counts.get(cat) || 0) + 1);
-        }}
-        centroids.forEach((val, cat) => {{
-            const n = counts.get(cat) || 1;
-            val.x /= n;
-            val.y /= n;
-        }});
-        ctx.save();
-        ctx.strokeStyle = theme === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(30,30,30,0.28)';
-        DATA.paga.edges.forEach(edge => {{
-            const a = edge.source;
-            const b = edge.target;
-            if (!centroids.has(a) || !centroids.has(b)) return;
-            const p1 = centroids.get(a), p2 = centroids.get(b);
-            ctx.lineWidth = 0.8 + edge.weight * 4;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
-        }});
-        ctx.fillStyle = theme === 'dark' ? '#f0f0f0' : '#222222';
-        ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-        centroids.forEach((p, cat) => {{
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillText(cat, p.x + 6, p.y - 6);
-        }});
-        ctx.restore();
-    }}
-
-    function syncOverlayButtons() {{
-        const pairs = [
-            ['btn-hulls', showHulls],
-            ['btn-density', showDensityContours],
-            ['btn-paga', showPaga],
-            ['btn-velocity', showVelocity],
-        ];
-        pairs.forEach(([id, active]) => {{
-            const el = document.getElementById(id);
-            if (el) el.classList.toggle('active', active);
-        }});
-        document.querySelectorAll('.panel-toggle[data-overlay]').forEach(btn => {{
-            const name = btn.dataset.overlay;
-            const active = (
-                (name === 'hulls' && showHulls) ||
-                (name === 'density' && showDensityContours) ||
-                (name === 'paga' && showPaga) ||
-                (name === 'velocity' && showVelocity)
-            );
-            btn.classList.toggle('active', active);
-        }});
-    }}
 
     // ── View transform ─────────────────────────────────────────────────────
     function createViewTransform(view, {{width, height, padding=8, zoom=1, panX=0, panY=0}}) {{
@@ -1867,8 +1635,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 
         const r = Math.max(0.5, SPOT_STEPS[spotStepIdx]);
 
-        drawDensityContours(ctx, view, tf, w, h);
-        drawConvexHulls(ctx, view, tf, cfg, values);
 
         // Pass 1 — hidden categories (ghost)
         if (hiddenCategories.size > 0 && !cfg.is_continuous) {{
@@ -1910,8 +1676,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }}
         ctx.globalAlpha = 1;
 
-        drawPAGA(ctx, view, tf, cfg, values);
-        drawVelocity(ctx, view, tf);
 
         // Pass 3 — selection outlines
         if (selectedCells.size > 0) {{
@@ -2052,33 +1816,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             const canvas = document.createElement('canvas');
             canvas.className = 'view-canvas';
 
-            const actions = document.createElement('div');
-            actions.className = 'panel-actions';
-            [
-                ['hulls', 'Hu', 'Toggle convex hulls'],
-                ['density', 'Dn', 'Toggle density contours'],
-                ['paga', 'Pg', 'Toggle PAGA graph'],
-                ['velocity', 'Ve', 'Toggle velocity arrows'],
-            ].forEach(([name, label, title]) => {{
-                const btn = document.createElement('button');
-                btn.className = 'panel-toggle';
-                btn.dataset.overlay = name;
-                btn.title = title;
-                btn.textContent = label;
-                btn.addEventListener('click', e => {{
-                    e.stopPropagation();
-                    toggleOverlay(name);
-                }});
-                actions.appendChild(btn);
-            }});
-
             panel.appendChild(lbl);
-            panel.appendChild(actions);
             panel.appendChild(canvas);
             panel.addEventListener('click', () => openModal(spec.panel_id));
             grid.appendChild(panel);
         }});
-        syncOverlayButtons();
     }}
 
     // ── Color / gene selectors ─────────────────────────────────────────────
@@ -2108,7 +1850,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         currentGene  = null;
         compareGene  = null;
         hiddenCategories.clear();
-        spotlightCategory = null;
+        spotlightCategory   = null;
+        markerInsightsGroupby = null;
+        markerInsightsGroup   = null;
         document.getElementById('gene-input').value = '';
         document.getElementById('gene2-input').value = '';
         document.getElementById('gene-clear-btn').classList.remove('visible');
@@ -2413,15 +2157,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         document.getElementById('btn-lasso').classList.toggle('active', mode === 'lasso');
     }}
 
-    function toggleOverlay(name) {{
-        if (name === 'hulls') showHulls = !showHulls;
-        if (name === 'density') showDensityContours = !showDensityContours;
-        if (name === 'paga') showPaga = !showPaga;
-        if (name === 'velocity') showVelocity = !showVelocity;
-        syncOverlayButtons();
-        renderAllViews();
-        if (modalViewId) renderModal();
-    }}
 
     function setupModalInteractions() {{
         const canvas = document.getElementById('modal-canvas');
@@ -2572,11 +2307,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         return keys.includes(currentColor) ? currentColor : keys[0];
     }}
 
-    function getDefaultMarkerTableGroupby() {{
-        const keys = Object.keys(DATA.analytics?.marker_genes || {{}});
-        if (!keys.length) return null;
-        return keys.includes(currentColor) ? currentColor : keys[0];
-    }}
 
     function setInsightsTab(tabName) {{
         activeInsightsTab = tabName;
@@ -2649,135 +2379,229 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         panel.innerHTML = html;
     }}
 
-    function renderMarkersInsights() {{
+    async function renderMarkersInsights() {{
         const panel = document.getElementById('insights-markers');
         if (!panel) return;
 
-        const groupMarkers = DATA.analytics?.marker_genes?.[currentColor];
-        if (!groupMarkers) {{
-            panel.innerHTML = `<div class="insights-empty">No marker genes were precomputed for <b>${{escapeHtml(currentColor)}}</b>.</div>`;
+        const allMarkers = DATA.analytics?.marker_genes || {{}};
+        const groupbyKeys = Object.keys(allMarkers);
+        if (!groupbyKeys.length) {{
+            panel.innerHTML = `<div class="insights-empty">No marker genes were precomputed for this export.</div>`;
             return;
         }}
 
-        const activeCategory = spotlightCategory || getSingleSelectedCategory(currentColor);
-        if (!activeCategory) {{
-            panel.innerHTML = `<div class="insights-empty">Spotlight a legend category or lasso cells from a single <b>${{escapeHtml(currentColor)}}</b> category to view marker genes.</div>`;
-            return;
+        // Resolve active groupby
+        if (!groupbyKeys.includes(markerInsightsGroupby)) {{
+            markerInsightsGroupby = groupbyKeys.includes(currentColor) ? currentColor : groupbyKeys[0];
+        }}
+        const groupMap   = allMarkers[markerInsightsGroupby] || {{}};
+        const groupKeys  = Object.keys(groupMap);
+        const cfg        = getCategoricalConfig(markerInsightsGroupby);
+
+        // Resolve active cluster — prefer current spotlight, then keep last, then first
+        if (!groupKeys.includes(markerInsightsGroup)) {{
+            markerInsightsGroup = (spotlightCategory && groupKeys.includes(spotlightCategory))
+                ? spotlightCategory
+                : groupKeys[0] || null;
         }}
 
-        const entries = groupMarkers[activeCategory] || [];
-        if (!entries.length) {{
-            panel.innerHTML = `<div class="insights-empty">No marker genes available for <b>${{escapeHtml(activeCategory)}}</b>.</div>`;
-            return;
-        }}
+        const activeGroup = markerInsightsGroup;
+        const entries     = (groupMap[activeGroup] || []).slice(0, 30);
+        const activeIdx   = cfg ? cfg.categories.indexOf(activeGroup) : -1;
+        const activeColor = activeIdx >= 0 ? PALETTE[activeIdx % PALETTE.length] : 'var(--accent)';
 
-        const maxScore = Math.max(...entries.map(entry => Math.abs(entry.score || 0)), 1e-9);
-        let html = `<div class="stats-section">
-            <div class="stats-section-title">Markers · ${{escapeHtml(currentColor)}}</div>
-            <div class="stats-row">
-                <span class="stats-key">${{escapeHtml(activeCategory)}}</span>
-                <span class="stats-val">${{entries.length}} genes</span>
-            </div>
-        </div><div class="marker-list">`;
-        entries.forEach(entry => {{
-            const pct = Math.max(0, Math.min(100, Math.abs(entry.score || 0) / maxScore * 100));
-            html += `<div class="marker-row">
-                <div class="marker-head">
-                    <span class="marker-gene">${{escapeHtml(entry.gene)}}</span>
-                    <span class="marker-meta">score ${{fmtNum(entry.score)}} · pct ${{((entry.pct_expr || 0) * 100).toFixed(1)}}%</span>
-                </div>
-                <div class="marker-bar-track"><div class="marker-bar-fill" style="width:${{pct}}%"></div></div>
+        // ── Build HTML ──
+        let html = '';
+
+        // Groupby selector (only when multiple groupbys exist)
+        if (groupbyKeys.length > 1) {{
+            html += `<div class="insights-control" style="margin-bottom:6px;">
+                <label for="marker-ins-groupby">Grouping</label>
+                <select id="marker-ins-groupby">
+                    ${{groupbyKeys.map(k =>
+                        `<option value="${{escapeHtml(k)}}"${{k === markerInsightsGroupby ? ' selected' : ''}}>${{escapeHtml(k)}}</option>`
+                    ).join('')}}
+                </select>
             </div>`;
+        }}
+
+        // Cluster chip row
+        html += `<div class="cluster-chip-row">`;
+        groupKeys.forEach(g => {{
+            const idx = cfg ? cfg.categories.indexOf(g) : -1;
+            const col = idx >= 0 ? PALETTE[idx % PALETTE.length] : '#888';
+            html += `<button class="cluster-chip${{g === activeGroup ? ' active' : ''}}"
+                        data-group="${{escapeHtml(g)}}"
+                        style="--chip-color:${{col}}">${{escapeHtml(g)}}</button>`;
         }});
         html += `</div>`;
-        panel.innerHTML = html;
-    }}
 
-    function renderTableInsights() {{
-        const panel = document.getElementById('insights-table');
-        if (!panel) return;
+        // Gene list
+        if (entries.length) {{
+            const maxScore = Math.max(...entries.map(e => Math.abs(e.score || 0)), 1e-9);
+            html += `<div class="marker-list" style="margin-top:10px;">`;
+            entries.forEach(entry => {{
+                const pct = Math.max(0, Math.min(100, Math.abs(entry.score || 0) / maxScore * 100));
+                html += `<div class="marker-row">
+                    <div class="marker-head">
+                        <button class="gene-link-btn" data-gene="${{escapeHtml(entry.gene)}}">${{escapeHtml(entry.gene)}}</button>
+                        <span class="marker-meta">score ${{fmtNum(entry.score)}} · ${{((entry.pct_expr || 0) * 100).toFixed(1)}}%</span>
+                    </div>
+                    <div class="marker-bar-track">
+                        <div class="marker-bar-fill" style="width:${{pct}}%;background:${{activeColor}}"></div>
+                    </div>
+                </div>`;
+            }});
+            html += `</div>`;
 
-        const markerGenes = DATA.analytics?.marker_genes || {{}};
-        const groupbyKeys = Object.keys(markerGenes);
-        if (!groupbyKeys.length) {{
-            panel.innerHTML = `<div class="insights-empty">No marker gene tables were precomputed for this export.</div>`;
-            return;
+            // Dotplot of top marker genes across all clusters
+            html += `<div class="marker-dotplot-wrap">
+                <div class="marker-dotplot-label">Expression across clusters</div>
+                <canvas class="dotplot-canvas" id="marker-dotplot-canvas"></canvas>
+            </div>`;
+        }} else {{
+            html += `<div class="insights-empty" style="margin-top:8px;">No markers for this cluster.</div>`;
         }}
 
-        markerTableGroupby = groupbyKeys.includes(markerTableGroupby) ? markerTableGroupby : getDefaultMarkerTableGroupby();
-        const groupMap = markerGenes[markerTableGroupby] || {{}};
-        const rows = [];
-        Object.entries(groupMap).forEach(([group, entries]) => {{
-            (entries || []).forEach((entry, rankIdx) => {{
-                rows.push({{
-                    group,
-                    gene: entry.gene,
-                    score: entry.score,
-                    pct_expr: entry.pct_expr,
-                    rank: rankIdx + 1,
-                }});
+        panel.innerHTML = html;
+
+        // Wire cluster chip clicks
+        panel.querySelectorAll('.cluster-chip').forEach(btn => {{
+            btn.addEventListener('click', () => {{
+                markerInsightsGroup = btn.dataset.group;
+                renderMarkersInsights();
             }});
         }});
 
-        const q = markerTableQuery.trim().toLowerCase();
-        const filtered = q
-            ? rows.filter(row =>
-                row.gene.toLowerCase().includes(q) ||
-                row.group.toLowerCase().includes(q))
-            : rows;
+        // Wire groupby selector
+        document.getElementById('marker-ins-groupby')?.addEventListener('change', e => {{
+            markerInsightsGroupby = e.target.value;
+            markerInsightsGroup   = null;
+            renderMarkersInsights();
+        }});
 
+        // Wire gene link clicks
+        panel.querySelectorAll('.gene-link-btn').forEach(btn => {{
+            btn.addEventListener('click', () => setGene(btn.dataset.gene));
+        }});
+
+        // Draw dotplot: top 15 marker genes × all visible clusters (load from sidecar on demand)
+        if (entries.length && cfg) {{
+            const dotGenes = entries.slice(0, 15).map(e => e.gene)
+                .filter(g => AVAILABLE_GENE_SET.has(g));
+            const dotCats  = cfg.categories.filter(cat => !hiddenCategories.has(cat));
+            if (dotGenes.length && dotCats.length) {{
+                const markerCanvas = document.getElementById('marker-dotplot-canvas');
+                const toLoad = dotGenes.filter(g => !(DATA.genes?.[g]));
+                if (toLoad.length > 0) {{
+                    _paintCanvasMsg(markerCanvas,
+                        `Loading ${{toLoad.length}} gene${{toLoad.length > 1 ? 's' : ''}}…`);
+                    await Promise.all(toLoad.map(g => ensureGeneLoaded(g, {{ showErrors: false }})));
+                }}
+                const readyGenes = dotGenes.filter(g => DATA.genes?.[g]);
+                if (readyGenes.length) {{
+                    drawDotplot(
+                        document.getElementById('marker-dotplot-canvas'),
+                        markerInsightsGroupby,
+                        readyGenes,
+                        dotCats,
+                    );
+                }}
+            }}
+        }}
+    }}
+
+    async function renderTableInsights() {{
+        const panel = document.getElementById('insights-table');
+        if (!panel) return;
+
+        const cfg = getCategoricalConfig(currentColor);
+
+        // Resolve gene: prefer explicit tableGeneText, fall back to currentGene
+        const geneInput = tableGeneText.trim();
+        const lower = geneInput.toLowerCase();
+        const gene = geneInput
+            ? (DATA.available_genes.find(g => g.toLowerCase() === lower) || null)
+            : currentGene;
+
+        // Build UI immediately so input stays responsive
+        const inputVal = tableGeneText;
         panel.innerHTML = `
             <div class="insights-controls">
                 <div class="insights-control">
-                    <label for="marker-table-groupby-select">Grouping</label>
-                    <select id="marker-table-groupby-select">
-                        ${{groupbyKeys.map(key => `<option value="${{escapeHtml(key)}}"${{key === markerTableGroupby ? ' selected' : ''}}>${{escapeHtml(key)}}</option>`).join('')}}
-                    </select>
-                </div>
-                <div class="insights-control">
-                    <label for="marker-table-search">Search</label>
-                    <input class="insights-search" id="marker-table-search" type="text" placeholder="Gene or group" value="${{escapeHtml(markerTableQuery)}}" />
+                    <label for="table-gene-input">Gene</label>
+                    <input type="text" id="table-gene-input"
+                           placeholder="Type any gene…"
+                           value="${{escapeHtml(inputVal)}}"
+                           list="gene-datalist" autocomplete="off" />
                 </div>
             </div>
-            ${{
-                filtered.length
-                    ? `<table class="insights-table">
-                        <thead>
-                            <tr>
-                                <th>Gene</th>
-                                <th>Group</th>
-                                <th>Rank</th>
-                                <th>Score</th>
-                                <th>pct</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${{filtered.slice(0, 250).map(row => `
-                                <tr>
-                                    <td>
-                                        <div>${{escapeHtml(row.gene)}}</div>
-                                        <div class="table-subtle">${{escapeHtml(markerTableGroupby)}}</div>
-                                    </td>
-                                    <td>${{escapeHtml(row.group)}}</td>
-                                    <td>${{row.rank}}</td>
-                                    <td>${{fmtNum(row.score)}}</td>
-                                    <td>${{((row.pct_expr || 0) * 100).toFixed(1)}}%</td>
-                                </tr>
-                            `).join('')}}
-                        </tbody>
-                    </table>
-                    <div class="table-subtle" style="margin-top:8px;">Showing ${{Math.min(filtered.length, 250)}} of ${{filtered.length}} rows.</div>`
-                    : `<div class="insights-empty">No marker rows match the current search.</div>`
-            }}`;
+            <div id="table-body-area"></div>`;
 
-        document.getElementById('marker-table-groupby-select')?.addEventListener('change', e => {{
-            markerTableGroupby = e.target.value;
-            renderTableInsights();
+        // Wire input — only re-render on commit (Enter or blur) to avoid re-render per keystroke
+        const inputEl = document.getElementById('table-gene-input');
+        inputEl?.addEventListener('input', e => {{
+            tableGeneText = e.target.value;
         }});
-        document.getElementById('marker-table-search')?.addEventListener('input', e => {{
-            markerTableQuery = e.target.value;
-            renderTableInsights();
+        inputEl?.addEventListener('change', () => renderTableInsights());
+        inputEl?.addEventListener('keydown', e => {{
+            if (e.key === 'Enter') renderTableInsights();
         }});
+
+        const bodyEl = document.getElementById('table-body-area');
+
+        if (!gene) {{
+            bodyEl.innerHTML = `<div class="insights-empty">Type a gene name above to view per-cluster expression.</div>`;
+            return;
+        }}
+        if (!cfg) {{
+            bodyEl.innerHTML = `<div class="insights-empty">Select a categorical obs column as the color to group cells.</div>`;
+            return;
+        }}
+
+        // Load gene on demand
+        if (!getGeneValues(gene)) {{
+            bodyEl.innerHTML = `<div class="insights-empty">Loading <b>${{escapeHtml(gene)}}</b>…</div>`;
+            const loaded = await ensureGeneLoaded(gene, {{ showErrors: false }});
+            if (!loaded) {{
+                bodyEl.innerHTML = `<div class="insights-empty">Gene <b>${{escapeHtml(gene)}}</b> is not available.</div>`;
+                return;
+            }}
+        }}
+
+        const values = getGeneValues(gene);
+        const cats = cfg.categories.filter(cat => !hiddenCategories.has(cat));
+
+        const rows = cats.map(cat => {{
+            const catIdx = cfg.categories.indexOf(cat);
+            const mask = Array.from(cfg.codes).map(c => c === catIdx);
+            const cellVals = values.filter((_, i) => mask[i] && isFinite(values[i]));
+            const n = cellVals.length;
+            const mean = n > 0 ? cellVals.reduce((s, v) => s + v, 0) / n : 0;
+            const pctExpr = n > 0 ? cellVals.filter(v => v > 0).length / n : 0;
+            const paletteColor = PALETTE[catIdx % PALETTE.length];
+            return {{ cat, n, mean, pctExpr, paletteColor }};
+        }});
+
+        bodyEl.innerHTML = `
+            <div style="padding:4px 0 6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);">
+                ${{escapeHtml(gene)}} · ${{escapeHtml(currentColor)}}
+            </div>
+            <table class="insights-table">
+                <thead>
+                    <tr><th>Cluster</th><th>Mean</th><th>% expr</th><th>N</th></tr>
+                </thead>
+                <tbody>
+                    ${{rows.map(r => `
+                        <tr>
+                            <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${{r.paletteColor}};margin-right:5px;vertical-align:middle;"></span>${{escapeHtml(r.cat)}}</td>
+                            <td>${{r.mean.toFixed(3)}}</td>
+                            <td>${{(r.pctExpr * 100).toFixed(1)}}%</td>
+                            <td>${{r.n}}</td>
+                        </tr>
+                    `).join('')}}
+                </tbody>
+            </table>`;
     }}
 
     function renderCompareInsights() {{
@@ -2840,7 +2664,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                                 entries.map(entry => {{
                                     const width = Math.max(0, Math.min(100, Math.abs(entry.logfc || 0) / maxAbsLogfc * 100));
                                     return `<tr>
-                                        <td>${{escapeHtml(entry.gene)}}</td>
+                                        <td><button class="gene-link-btn" data-gene="${{escapeHtml(entry.gene)}}">${{escapeHtml(entry.gene)}}</button></td>
                                         <td>${{fmtNum(entry.logfc)}}</td>
                                         <td>${{entry.pval == null ? 'n/a' : fmtNum(entry.pval)}}</td>
                                         <td><div class="de-bar-track"><div class="de-bar-fill" style="width:${{width}}%"></div></div></td>
@@ -2851,6 +2675,10 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                     </table>`
                     : `<div class="insights-empty">No DE results are available for <b>${{escapeHtml(compareGroupA)}}</b> vs <b>${{escapeHtml(compareGroupB)}}</b>.</div>`
             }}`;
+
+        panel.querySelectorAll('.gene-link-btn').forEach(btn => {{
+            btn.addEventListener('click', () => setGene(btn.dataset.gene));
+        }});
 
         document.getElementById('compare-groupby-select')?.addEventListener('change', e => {{
             compareGroupby = e.target.value;
@@ -2953,70 +2781,329 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         ctx.restore();
     }}
 
-    function renderDotplotInsights() {{
+    function _getDotplotGenes() {{
+        return dotplotGeneText.split(',').map(g => g.trim()).filter(Boolean);
+    }}
+
+    function _setDotplotGenes(genes) {{
+        dotplotGeneText = [...new Set(genes)].join(', ');
+    }}
+
+    function _renderDotplotChips() {{
+        const box = document.getElementById('dotplot-chip-box');
+        if (!box) return;
+        const inputEl = box.querySelector('input');
+        box.querySelectorAll('.gene-chip').forEach(c => c.remove());
+        _getDotplotGenes().forEach(gene => {{
+            const chip = document.createElement('span');
+            chip.className = 'gene-chip';
+            const rm = document.createElement('button');
+            rm.className = 'chip-remove';
+            rm.textContent = '×';
+            rm.title = `Remove ${{gene}}`;
+            rm.addEventListener('click', e => {{
+                e.stopPropagation();
+                _setDotplotGenes(_getDotplotGenes().filter(g => g !== gene));
+                _renderDotplotChips();
+                renderDotplotInsights();
+            }});
+            chip.appendChild(document.createTextNode(gene + ' '));
+            chip.appendChild(rm);
+            box.insertBefore(chip, inputEl);
+        }});
+        if (inputEl) {{
+            inputEl.placeholder = _getDotplotGenes().length ? 'Add gene…' : 'Gene1, Gene2…';
+        }}
+    }}
+
+    function _setupDotplotChipInput() {{
+        const box = document.getElementById('dotplot-chip-box');
+        if (!box) return;
+
+        const inputEl = document.createElement('input');
+        inputEl.type = 'text';
+        inputEl.setAttribute('list', 'gene-datalist');
+        inputEl.setAttribute('autocomplete', 'off');
+        box.appendChild(inputEl);
+
+        box.addEventListener('click', () => inputEl.focus());
+
+        inputEl.addEventListener('keydown', e => {{
+            if (e.key === 'Enter' || e.key === ',') {{
+                e.preventDefault();
+                const raw = inputEl.value.replace(/,/g, '').trim();
+                if (!raw) return;
+                const lower = raw.toLowerCase();
+                const match = DATA.available_genes.find(g => g.toLowerCase() === lower);
+                inputEl.value = '';
+                if (match) {{
+                    _setDotplotGenes([..._getDotplotGenes(), match]);
+                    _renderDotplotChips();
+                    renderDotplotInsights();
+                }}
+            }} else if (e.key === 'Backspace' && !inputEl.value) {{
+                const genes = _getDotplotGenes();
+                if (genes.length) {{
+                    _setDotplotGenes(genes.slice(0, -1));
+                    _renderDotplotChips();
+                    renderDotplotInsights();
+                }}
+            }}
+        }});
+    }}
+
+    async function renderDotplotInsights() {{
         const panel = document.getElementById('insights-dotplot');
         if (!panel) return;
 
         const cfg = getCategoricalConfig(currentColor);
         if (!cfg) {{
-            panel.innerHTML = `<div class="insights-empty">Dotplot currently requires a categorical obs column as the active color.</div>`;
+            panel.innerHTML = `<div class="insights-empty">Dotplot requires a categorical obs column as the active color.</div>`;
             return;
         }}
 
-        const markerGroup = DATA.analytics?.marker_genes?.[currentColor] || null;
-        const activeCategory = spotlightCategory || getSingleSelectedCategory(currentColor);
-        const defaultGenes = activeCategory && markerGroup?.[activeCategory]
-            ? markerGroup[activeCategory].slice(0, 8).map(entry => entry.gene)
-            : [];
-        if (currentGene) defaultGenes.unshift(currentGene);
-        if (compareGene) defaultGenes.unshift(compareGene);
-        const requestedGenes = dotplotGeneText
-            .split(',')
-            .map(gene => gene.trim())
-            .filter(Boolean);
-        const genes = [...new Set((requestedGenes.length ? requestedGenes : defaultGenes))]
-            .filter(gene => DATA.genes_meta?.[gene]);
-        const categories = (spotlightCategory ? [spotlightCategory] : cfg.categories.filter(cat => !hiddenCategories.has(cat))).slice(0, 12);
+        // Build the shell once — do NOT rebuild on subsequent calls to preserve chip input focus
+        if (!panel.querySelector('.dotplot-shell')) {{
+            panel.innerHTML = `
+                <div class="dotplot-shell">
+                    <div class="insights-control">
+                        <label>Genes</label>
+                        <div class="gene-chip-input" id="dotplot-chip-box"></div>
+                    </div>
+                    <canvas class="dotplot-canvas" id="dotplot-canvas"></canvas>
+                    <div class="dotplot-note">Enter or , to add · Backspace to remove</div>
+                </div>`;
+            _setupDotplotChipInput();
+        }}
+        _renderDotplotChips();
 
-        panel.innerHTML = `
-            <div class="dotplot-shell">
-                <div class="insights-control">
-                    <label for="dotplot-gene-input">Genes</label>
-                    <input type="text" id="dotplot-gene-input" placeholder="GeneA, GeneB, GeneC" value="${{escapeHtml(dotplotGeneText)}}" />
-                </div>
-                <canvas class="dotplot-canvas" id="dotplot-canvas"></canvas>
-                <div class="dotplot-note">Rows use the active marker list when available. Comma-separated genes override it. Only embedded genes are drawn.</div>
-            </div>`;
+        // Determine candidate genes
+        const explicitGenes = _getDotplotGenes();
+        let candidateGenes;
+        if (explicitGenes.length) {{
+            candidateGenes = explicitGenes.filter(g => AVAILABLE_GENE_SET.has(g));
+        }} else {{
+            const markerGroup = DATA.analytics?.marker_genes?.[currentColor] || null;
+            const activeCategory = spotlightCategory || getSingleSelectedCategory(currentColor);
+            const defaultGenes = activeCategory && markerGroup?.[activeCategory]
+                ? markerGroup[activeCategory].slice(0, 8).map(entry => entry.gene)
+                : [];
+            if (currentGene) defaultGenes.unshift(currentGene);
+            if (compareGene) defaultGenes.unshift(compareGene);
+            candidateGenes = [...new Set(defaultGenes)].filter(g => AVAILABLE_GENE_SET.has(g));
+        }}
 
-        document.getElementById('dotplot-gene-input')?.addEventListener('input', e => {{
-            dotplotGeneText = e.target.value;
-            renderDotplotInsights();
-        }});
+        const categories = (spotlightCategory
+            ? [spotlightCategory]
+            : cfg.categories.filter(cat => !hiddenCategories.has(cat))
+        ).slice(0, 12);
+
+        // Load genes on demand
+        const toLoad = candidateGenes.filter(g => !(DATA.genes?.[g]));
+        if (toLoad.length > 0) {{
+            _paintCanvasMsg(document.getElementById('dotplot-canvas'),
+                `Loading ${{toLoad.length}} gene${{toLoad.length > 1 ? 's' : ''}}…`);
+            await Promise.all(toLoad.map(g => ensureGeneLoaded(g, {{ showErrors: false }})));
+        }}
+
+        const genes = candidateGenes.filter(g => DATA.genes?.[g]);
 
         if (!genes.length || !categories.length) {{
-            const canvas = document.getElementById('dotplot-canvas');
-            if (canvas) {{
-                const ctx = canvas.getContext('2d');
-                const rect = canvas.getBoundingClientRect();
-                const dpr = window.devicePixelRatio || 1;
-                canvas.width = rect.width * dpr;
-                canvas.height = rect.height * dpr;
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                ctx.fillStyle = getPanelBg();
-                ctx.fillRect(0, 0, rect.width, rect.height);
-                ctx.fillStyle = theme === 'dark' ? '#9a9a9a' : '#666666';
-                ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                ctx.fillText('No dotplot genes available for the current view.', 14, 22);
-            }}
+            _paintCanvasMsg(document.getElementById('dotplot-canvas'),
+                genes.length === 0
+                    ? 'Add genes above to display the dotplot.'
+                    : 'No categories to display.');
             return;
         }}
 
         drawDotplot(document.getElementById('dotplot-canvas'), currentColor, genes, categories);
     }}
 
+    // ── Canvas utility ────────────────────────────────────────────────────
+    function _paintCanvasMsg(canvas, msg) {{
+        if (!canvas) return;
+        const dpr  = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width  = (rect.width  || 200) * dpr;
+        canvas.height = (rect.height || 60)  * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = getPanelBg();
+        ctx.fillRect(0, 0, rect.width || 200, rect.height || 60);
+        ctx.fillStyle = theme === 'dark' ? '#888' : '#999';
+        ctx.font = '11px -apple-system, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(msg, 10, (rect.height || 60) / 2);
+    }}
+
+    // ── Boxplot ────────────────────────────────────────────────────────────
+    function computeBoxStats(values, codes, catIdx) {{
+        const cellVals = [];
+        for (let i = 0; i < DATA.n_cells; i++) {{
+            const code = codes?.[i];
+            if (code == null || !Number.isFinite(code)) continue;
+            if (Math.round(code) !== catIdx) continue;
+            const v = values[i];
+            if (v != null && Number.isFinite(v)) cellVals.push(v);
+        }}
+        if (!cellVals.length) return null;
+        cellVals.sort((a, b) => a - b);
+        const n = cellVals.length;
+        const q1  = cellVals[Math.floor(n * 0.25)];
+        const med = cellVals[Math.floor(n * 0.5)];
+        const q3  = cellVals[Math.floor(n * 0.75)];
+        const iqr = q3 - q1;
+        const wlo = Math.max(cellVals[0],     q1 - 1.5 * iqr);
+        const whi = Math.min(cellVals[n - 1], q3 + 1.5 * iqr);
+        return {{ q1, med, q3, wlo, whi, n }};
+    }}
+
+    function drawBoxplot(canvas, statsList, catMeta) {{
+        if (!canvas || !statsList.length) return;
+        const dpr  = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        canvas.width  = rect.width  * dpr;
+        canvas.height = rect.height * dpr;
+
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = getPanelBg();
+        ctx.fillRect(0, 0, rect.width, rect.height);
+
+        const left = 44, right = 6, top = 10, bottom = 58;
+        const innerW = rect.width  - left - right;
+        const innerH = rect.height - top  - bottom;
+
+        const allVals = statsList.flatMap(s => s ? [s.wlo, s.q1, s.med, s.q3, s.whi] : []);
+        if (!allVals.length) return;
+        const ymin   = Math.min(...allVals);
+        const ymax   = Math.max(...allVals);
+        const yrange = Math.max(ymax - ymin, 1e-9);
+        const toY    = v => top + innerH * (1 - (v - ymin) / yrange);
+
+        const slotW = innerW / statsList.length;
+        const barW  = Math.max(6, Math.min(28, slotW * 0.55));
+
+        // Gridlines + y-axis labels
+        ctx.font = '9px -apple-system, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = theme === 'dark' ? '#888' : '#999';
+        for (let t = 0; t <= 4; t++) {{
+            const v = ymin + yrange * t / 4;
+            const y = toY(v);
+            ctx.fillText(fmtNum(v), left - 4, y);
+            ctx.strokeStyle = theme === 'dark' ? '#333' : '#f0f0f0';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + innerW, y); ctx.stroke();
+        }}
+        // Y axis spine
+        ctx.strokeStyle = theme === 'dark' ? '#555' : '#ccc';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, top + innerH); ctx.stroke();
+
+        // Draw each box
+        statsList.forEach((s, idx) => {{
+            if (!s) return;
+            const meta  = catMeta[idx];
+            const color = PALETTE[meta.catIdx % PALETTE.length];
+            const xc    = left + (idx + 0.5) * slotW;
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth   = 1.5;
+
+            // Whisker lines
+            ctx.globalAlpha = 0.7;
+            ctx.beginPath();
+            ctx.moveTo(xc, toY(s.whi)); ctx.lineTo(xc, toY(s.q3));
+            ctx.moveTo(xc - barW * 0.25, toY(s.whi)); ctx.lineTo(xc + barW * 0.25, toY(s.whi));
+            ctx.moveTo(xc, toY(s.q1));  ctx.lineTo(xc, toY(s.wlo));
+            ctx.moveTo(xc - barW * 0.25, toY(s.wlo)); ctx.lineTo(xc + barW * 0.25, toY(s.wlo));
+            ctx.stroke();
+
+            // IQR box
+            const boxTop = toY(s.q3);
+            const boxH   = Math.max(1, toY(s.q1) - toY(s.q3));
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle   = color;
+            ctx.fillRect(xc - barW / 2, boxTop, barW, boxH);
+            ctx.globalAlpha = 0.85;
+            ctx.strokeRect(xc - barW / 2, boxTop, barW, boxH);
+
+            // Median line
+            ctx.globalAlpha = 1;
+            ctx.lineWidth   = 2;
+            ctx.beginPath();
+            ctx.moveTo(xc - barW / 2, toY(s.med));
+            ctx.lineTo(xc + barW / 2, toY(s.med));
+            ctx.stroke();
+        }});
+        ctx.globalAlpha = 1;
+
+        // X-axis category labels (rotated)
+        ctx.fillStyle = theme === 'dark' ? '#cfcfcf' : '#444';
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        statsList.forEach((_, idx) => {{
+            const xc = left + (idx + 0.5) * slotW;
+            ctx.save();
+            ctx.translate(xc, top + innerH + 5);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(catMeta[idx].cat, 0, 0);
+            ctx.restore();
+        }});
+    }}
+
+    async function renderBoxplotInsights() {{
+        const panel = document.getElementById('insights-boxplot');
+        if (!panel) return;
+
+        const gene = currentGene;
+        if (!gene) {{
+            panel.innerHTML = `<div class="insights-empty">Select a gene above to view per-group expression distributions.</div>`;
+            return;
+        }}
+
+        const cfg = getCategoricalConfig(currentColor);
+        if (!cfg) {{
+            panel.innerHTML = `<div class="insights-empty">Select a categorical obs column as the color to group cells.</div>`;
+            return;
+        }}
+
+        // Load gene on demand (works with sidecar / karospace exports)
+        if (!getGeneValues(gene)) {{
+            panel.innerHTML = `<div class="insights-empty">Loading <b>${{escapeHtml(gene)}}</b>…</div>`;
+            const loaded = await ensureGeneLoaded(gene, {{ showErrors: false }});
+            if (!loaded) {{
+                panel.innerHTML = `<div class="insights-empty">Gene <b>${{escapeHtml(gene)}}</b> is not available in this export.</div>`;
+                return;
+            }}
+        }}
+
+        const values = getGeneValues(gene);
+        const catMeta = cfg.categories
+            .map((cat, catIdx) => ({{ cat, catIdx }}))
+            .filter(c => !hiddenCategories.has(c.cat));
+        const statsList = catMeta.map(c => computeBoxStats(values, cfg.codes, c.catIdx));
+
+        panel.innerHTML = `
+            <div style="padding:4px 0 6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);">
+                ${{escapeHtml(gene)}} · ${{escapeHtml(currentColor)}}
+            </div>
+            <canvas class="boxplot-canvas" id="boxplot-canvas"></canvas>
+            <div class="dotplot-note" style="margin-top:4px;">Box: IQR · line: median · whiskers: 1.5×IQR</div>`;
+
+        requestAnimationFrame(() => {{
+            drawBoxplot(document.getElementById('boxplot-canvas'), statsList, catMeta);
+        }});
+    }}
+
     function updateInsights() {{
         renderStatsInsights();
         renderMarkersInsights();
+        renderBoxplotInsights();
         renderTableInsights();
         renderCompareInsights();
         renderDotplotInsights();
@@ -3083,12 +3170,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             renderAllViews();
             updateInsights();
         }});
-        document.getElementById('btn-hulls').addEventListener('click', () => toggleOverlay('hulls'));
-        document.getElementById('btn-density').addEventListener('click', () => toggleOverlay('density'));
-        document.getElementById('btn-paga').addEventListener('click', () => toggleOverlay('paga'));
-        document.getElementById('btn-velocity').addEventListener('click', () => toggleOverlay('velocity'));
 
-        document.querySelectorAll('.insights-tab').forEach(btn => {{
+        document.querySelectorAll('#sidebar-tabs .insights-tab').forEach(btn => {{
             btn.addEventListener('click', () => {{
                 setInsightsTab(btn.dataset.tab);
                 updateInsights();
@@ -3171,9 +3254,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         buildGeneDatalist();
         updateSpotSizeLabel();
         renderLegend();
-        syncOverlayButtons();
         requestAnimationFrame(renderAllViews);
         setupEvents();
+        updateInsights();
 
         // Hide loader once first frame renders
         requestAnimationFrame(() => {{

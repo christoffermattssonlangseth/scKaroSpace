@@ -194,6 +194,14 @@ class ScDataset:
 
 # ── obs column selection ─────────────────────────────────────────────────────
 
+# Column prefixes that indicate QC / doublet-detection artifacts rather than
+# biologically meaningful metadata.
+_NOISE_COLUMN_PREFIXES = (
+    "pANN_",               # DoubletFinder neighbour proportion scores
+    "DF.classifications_", # DoubletFinder singlet/doublet calls
+)
+
+
 def _select_obs_columns(
     adata: sc.AnnData,
     max_cat_categories: int = 200,
@@ -201,6 +209,8 @@ def _select_obs_columns(
     """Return obs columns suitable for cell colouring."""
     result = []
     for col in adata.obs.columns:
+        if any(col.startswith(p) for p in _NOISE_COLUMN_PREFIXES):
+            continue
         series = adata.obs[col]
         if series.isna().mean() > 0.9:
             continue
@@ -209,7 +219,14 @@ def _select_obs_columns(
             if 1 < len(series.cat.categories) <= max_cat_categories:
                 result.append(col)
         elif pd.api.types.is_numeric_dtype(dtype):
-            result.append(col)
+            # Skip near-constant columns and columns where >99% of cells
+            # share the same value (e.g. all-zero trace measurements).
+            vals = series.dropna().to_numpy(dtype=float)
+            if len(vals) > 0 and np.nanstd(vals) > 1e-6:
+                mode_val = float(np.nanmedian(vals))
+                frac_spread = float(np.mean(np.abs(vals - mode_val) > 1e-6))
+                if frac_spread >= 0.01:
+                    result.append(col)
         else:
             unique_n = series.nunique(dropna=True)
             if 1 < unique_n <= max_cat_categories:

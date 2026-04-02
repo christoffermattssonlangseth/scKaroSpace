@@ -20,7 +20,7 @@ from sckaro import export_to_html, load_sc_data
 
 DATASET_PATH = Path("/Users/chrislangseth/Microglia_SCT.h5ad")
 OUTPUT_PATH = ROOT / "microglia_sct.karospace"
-EMBEDDINGS = ["umap_Microglia", "umap.unintegrated"]
+EMBEDDINGS = ["umap_Microglia"]
 
 
 def main() -> None:
