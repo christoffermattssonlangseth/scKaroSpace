@@ -93,6 +93,16 @@ def main(argv=None):
         help="Number of genes per sidecar shard when --gene-storage sidecar (default: 256).",
     )
     parser.add_argument(
+        "--gene-sidecar-format",
+        choices=["json-v2", "binary-v1"], default="json-v2",
+        help="Sidecar shard format: json-v2 (default) or binary-v1 (KSB1, smaller files).",
+    )
+    parser.add_argument(
+        "--gene-value-encoding",
+        choices=["uint8", "uint16"], default="uint8",
+        help="Quantization for binary sidecar values: uint8 (default) or uint16 (higher precision).",
+    )
+    parser.add_argument(
         "--marker-genes-groupby",
         type=str, nargs="+", default=None,
         metavar="COLUMN",
@@ -140,6 +150,8 @@ def main(argv=None):
         gene_storage=args.gene_storage,
         gene_aux_path=args.gene_aux_path,
         gene_sidecar_shard_size=args.gene_sidecar_shard_size,
+        gene_sidecar_format=args.gene_sidecar_format,
+        gene_value_encoding=args.gene_value_encoding,
         marker_genes_groupby=args.marker_genes_groupby,
         cluster_de_groupby=args.cluster_de_groupby,
     )

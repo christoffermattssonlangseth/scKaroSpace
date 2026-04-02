@@ -1,6 +1,10 @@
 """
 Package export for Astrocytes_SCT.h5ad.
 
+Writes:
+- astrocytes_sct.karospace  (binary KSB1 shards, openable with karospace-package-loader.html)
+- astrocytes_sct.loader.html
+
 Run:
     python scripts/run_astrocytes_sct_package.py
 """
@@ -38,6 +42,8 @@ def main() -> None:
         spot_size=3.5,
         hvg_limit=20,
         gene_storage="sidecar",
+        gene_sidecar_format="binary-v1",
+        gene_value_encoding="uint8",
         gene_sidecar_shard_size=256,
         marker_genes_groupby=["Astrocytes_clusters"],
         cluster_de_groupby=["Astrocytes_clusters"],

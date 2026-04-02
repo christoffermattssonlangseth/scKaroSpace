@@ -74,6 +74,8 @@ sckaro input.h5ad \
 | `--gene-storage` | `embedded` | `embedded` (single HTML) or `sidecar` (HTML + shards) |
 | `--gene-aux-path PATH` | — | Output path for the sidecar manifest (when `--gene-storage sidecar`) |
 | `--gene-sidecar-shard-size N` | `256` | Genes per shard in sidecar mode |
+| `--gene-sidecar-format` | `json-v2` | `json-v2` or `binary-v1` (KSB1, smaller files) |
+| `--gene-value-encoding` | `uint8` | Quantization for binary shards: `uint8` or `uint16` |
 | `--marker-genes-groupby COL …` | — | obs columns for precomputed marker-gene analysis |
 | `--cluster-de-groupby COL …` | — | obs columns for precomputed pairwise DE |
 
@@ -103,13 +105,21 @@ export_to_html(
 For large datasets, use sidecar storage so gene data is loaded on demand:
 
 ```python
-from sckaro import package_sidecar_viewer
+# JSON shards (default)
+export_to_html(dataset, output_path="viewer.html", gene_storage="sidecar")
 
-package_sidecar_viewer(
+# Binary shards (KSB1 — smaller, faster to load)
+export_to_html(
     dataset,
-    output_path="viewer.loader.html",
-    gene_aux_path="viewer.genes.json",
+    output_path="viewer.html",
+    gene_storage="sidecar",
+    gene_sidecar_format="binary-v1",
+    gene_value_encoding="uint8",   # or "uint16" for higher precision
 )
+
+# Bundle everything into a single .karospace archive
+export_to_html(dataset, output_path="viewer.karospace", gene_storage="sidecar",
+               gene_sidecar_format="binary-v1")
 ```
 
 ## Examples
