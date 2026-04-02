@@ -8,6 +8,7 @@ and a vanilla-JS Canvas-based viewer — no server or Python required.
 import json
 import os
 import re
+import shutil
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -36,6 +37,7 @@ DEFAULT_PALETTE = [
 
 GENE_SIDECAR_SHARD_SIZE = 256
 KAROSPACE_PACKAGE_MANIFEST = "karospace-package.json"
+KAROSPACE_PACKAGE_LOADER_FILENAME = "karospace-package-loader.html"
 
 
 def _chunked(values: List[str], size: int) -> List[List[str]]:
@@ -55,6 +57,31 @@ def _guess_package_media_type(path: Union[str, Path]) -> str:
     if suffix == ".json":
         return "application/json"
     return "application/octet-stream"
+
+
+def _find_karospace_package_loader_template() -> Optional[Path]:
+    candidates = [
+        Path(__file__).resolve().with_name("package_loader.html"),
+        Path(__file__).resolve().parent.parent / KAROSPACE_PACKAGE_LOADER_FILENAME,
+        Path(__file__).resolve().parents[2] / "KaroSpace" / KAROSPACE_PACKAGE_LOADER_FILENAME,
+        Path("/Users/chrislangseth/work/karolinska_institutet/projects/KaroSpace") / KAROSPACE_PACKAGE_LOADER_FILENAME,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _write_karospace_package_loader(
+    *,
+    loader_path: Path,
+) -> Optional[Path]:
+    template_path = _find_karospace_package_loader_template()
+    if template_path is None:
+        return None
+    loader_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(template_path, loader_path)
+    return loader_path
 
 # ── Gene encoding helpers ────────────────────────────────────────────────────
 
@@ -383,6 +410,7 @@ def package_sidecar_viewer(
     output_path: Optional[Union[str, Path]] = None,
     gene_manifest_path: Optional[Union[str, Path]] = None,
     gene_shard_dir: Optional[Union[str, Path]] = None,
+    loader_output_path: Optional[Union[str, Path]] = None,
 ) -> str:
     """Package an existing sidecar viewer bundle into a `.karospace` archive."""
     source_html_path = Path(html_path).expanduser().resolve()
@@ -453,6 +481,12 @@ def package_sidecar_viewer(
             total_cells=int(data.get("n_cells") or 0),
         )
 
+    resolved_loader_output_path = (
+        Path(loader_output_path).expanduser().resolve()
+        if loader_output_path is not None
+        else resolved_output_path.with_suffix(".loader.html")
+    )
+    _write_karospace_package_loader(loader_path=resolved_loader_output_path)
     return str(resolved_output_path)
 
 
@@ -3444,6 +3478,7 @@ def export_to_html(
         assert package_output_path is not None
         assert resolved_gene_aux_path is not None
         assert resolved_gene_aux_dir is not None
+        written_loader_path = None
         with tempfile.TemporaryDirectory(prefix="sckaro-package-") as tmpdir:
             bundle_root = Path(tmpdir)
             entry_html = "index.html"
@@ -3472,8 +3507,15 @@ def export_to_html(
                 n_views=dataset.n_views,
                 total_cells=dataset.n_cells,
             )
+        written_loader_path = _write_karospace_package_loader(
+            loader_path=package_output_path.with_suffix(".loader.html")
+        )
         size_mb = package_output_path.stat().st_size / 1e6
         print(f"  Written package to {package_output_path} ({size_mb:.1f} MB)")
+        if written_loader_path is not None:
+            print(f"  Written loader to {written_loader_path}")
+        else:
+            print("  Warning: package loader template not found; no loader HTML was written")
         return str(package_output_path)
 
     size_mb = html_output_path.stat().st_size / 1e6
